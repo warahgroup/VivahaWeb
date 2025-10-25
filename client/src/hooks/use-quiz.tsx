@@ -5,6 +5,13 @@ import type { QuizResponse } from "@shared/schema";
 export function useQuizResponse(userId: string) {
   return useQuery<QuizResponse | null>({
     queryKey: ["/api/quiz", userId],
+    queryFn: async () => {
+      const response = await fetch(`/api/quiz/${userId}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch quiz");
+      }
+      return response.json();
+    },
     enabled: !!userId,
   });
 }

@@ -9,6 +9,16 @@ export function useSavedItems(userId: string, type?: SavedItem["type"]) {
 
   return useQuery<SavedItem[]>({
     queryKey,
+    queryFn: async () => {
+      const url = type
+        ? `/api/items/${userId}?type=${type}`
+        : `/api/items/${userId}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch items");
+      }
+      return response.json();
+    },
     enabled: !!userId,
   });
 }
@@ -20,6 +30,7 @@ export function useAddSavedItem(userId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", userId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/progress", userId] });
     },
   });
 }
@@ -31,6 +42,7 @@ export function useDeleteSavedItem(userId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", userId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/progress", userId] });
     },
   });
 }
@@ -42,6 +54,7 @@ export function useUpdateSavedItem(userId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", userId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/progress", userId] });
     },
   });
 }

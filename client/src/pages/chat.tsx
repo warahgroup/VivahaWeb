@@ -10,7 +10,11 @@ import { OnboardingTour } from "@/components/onboarding-tour";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Share2 } from "lucide-react";
+import { useChatMessages, useSendMessage } from "@/hooks/use-chat";
+import { useSavedItems, useAddSavedItem, useDeleteSavedItem, useUpdateSavedItem } from "@/hooks/use-saved-items";
+import { useQuizResponse } from "@/hooks/use-quiz";
+import { useProgress } from "@/hooks/use-progress";
+import { Send, Share2, Loader2 } from "lucide-react";
 import type { ChatMessage as ChatMessageType, SavedItem, QuizResponse } from "@shared/schema";
 import { trackEvent } from "@/lib/analytics";
 
@@ -21,123 +25,50 @@ interface ChatPageProps {
 
 export default function ChatPage({ onLogout, userId }: ChatPageProps) {
   const [activeTab, setActiveTab] = useState("chat");
-  const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number } | null>(null);
-  const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
+  // React Query hooks
+  const { data: messages = [], isLoading: messagesLoading } = useChatMessages(userId);
+  const { data: savedItems = [], isLoading: itemsLoading } = useSavedItems(userId);
+  const { data: quizData } = useQuizResponse(userId);
+  const { data: progressData } = useProgress(userId);
+  const sendMessageMutation = useSendMessage(userId);
+  const addItemMutation = useAddSavedItem(userId);
+  const deleteItemMutation = useDeleteSavedItem(userId);
+  const updateItemMutation = useUpdateSavedItem(userId);
+
   useEffect(() => {
-    // Load saved data
-    const stored = localStorage.getItem("vivaha-chat-messages");
-    if (stored) {
-      setMessages(JSON.parse(stored));
-    } else {
-      // Initialize with welcome message
-      const quizData = localStorage.getItem("vivaha-quiz");
-      const welcomeMessage = getWelcomeMessage(quizData ? JSON.parse(quizData) : null);
-      setMessages([welcomeMessage]);
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
-    const storedItems = localStorage.getItem("vivaha-saved-items");
-    if (storedItems) {
-      setSavedItems(JSON.parse(storedItems));
-    }
-
-    // Check if onboarding needed
+  useEffect(() => {
     const onboardingComplete = localStorage.getItem("vivaha-onboarding-complete");
     if (!onboardingComplete) {
       setTimeout(() => setShowOnboarding(true), 1000);
     }
   }, []);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const getWelcomeMessage = (quizData: QuizResponse | null): ChatMessageType => {
-    let content = "Welcome to Vivaha Chat Bot! I'm here to help you plan your dream Indian wedding. How can I assist you today?";
-    
-    if (quizData) {
-      const styleText = quizData.style === "traditional" ? "traditional ceremonies" :
-                       quizData.style === "fusion" ? "fusion wedding with modern elements" :
-                       "destination wedding at an exotic location";
-      content = `Welcome! I see you're planning a ${styleText}. I'm excited to help you create your perfect celebration! What would you like to know?`;
-    }
-
-    return {
-      id: Date.now().toString(),
-      sender: "bot",
-      content,
-      timestamp: Date.now(),
-    };
-  };
-
-  const getBotResponse = (userMessage: string): string => {
-    const lower = userMessage.toLowerCase();
-    const quizData = localStorage.getItem("vivaha-quiz");
-    const quiz: QuizResponse | null = quizData ? JSON.parse(quizData) : null;
-
-    // Budget-related
-    if (lower.includes("budget") || lower.includes("cost") || lower.includes("price")) {
-      return "The average Indian wedding costs around ₹20-25 lakhs. This typically breaks down as:\n• Catering: 40% (₹8-10L)\n• Decor & Venue: 20% (₹4-5L)\n• Photography: 15% (₹3L)\n• Outfits & Jewelry: 15% (₹3L)\n• Other: 10% (₹2L)\n\nWould you like a detailed breakdown for your budget range?";
-    }
-
-    // Venue-related
-    if (lower.includes("venue") || lower.includes("location") || lower.includes("place")) {
-      return quiz?.style === "destination"
-        ? "For destination weddings, popular choices include Jaipur palaces, Goa beaches, Udaipur lake resorts, and Kerala backwaters. Each offers unique cultural experiences and can accommodate 200-500+ guests. Need specific venue recommendations?"
-        : "Great venues for 200-500 guests include heritage hotels, banquet halls, farmhouses, and temple gardens. I can help you find venues in your preferred city. Which location are you considering?";
-    }
-
-    // Vendor-related
-    if (lower.includes("vendor") || lower.includes("photographer") || lower.includes("caterer") || lower.includes("decorator")) {
-      return "We have a curated network of trusted wedding vendors:\n• Photographers & Videographers\n• Caterers (North/South Indian cuisine specialists)\n• Decorators (traditional & modern themes)\n• Mehndi artists\n• DJs & Live bands\n• Makeup artists\n\nWhich vendors would you like recommendations for?";
-    }
-
-    // Timeline-related
-    if (lower.includes("timeline") || lower.includes("when") || lower.includes("how long")) {
-      return "The ideal wedding planning timeline is 6-8 months:\n• 6-8 months: Book venue & vendors\n• 4-5 months: Send invitations, finalize decor\n• 2-3 months: Menu tasting, outfit fittings\n• 1 month: Final confirmations & rehearsals\n• 1 week: Last-minute coordination\n\nWhere are you in this timeline?";
-    }
-
-    // Traditions-related
-    if (lower.includes("tradition") || lower.includes("ceremony") || lower.includes("ritual") || lower.includes("mehndi") || lower.includes("haldi") || lower.includes("sangeet")) {
-      return "Traditional Indian wedding ceremonies include:\n• Mehndi: Henna application with music & dancing\n• Haldi: Turmeric paste ceremony for blessing\n• Sangeet: Musical evening with performances\n• Wedding Day: Baraat, Varmala, Pheras, Vidaai\n\nWould you like detailed planning guidance for any ceremony?";
-    }
-
-    // Decor-related
-    if (lower.includes("decor") || lower.includes("decoration") || lower.includes("theme") || lower.includes("flowers")) {
-      return quiz?.style === "fusion"
-        ? "For fusion weddings, trending themes blend traditional marigold garlands with modern LED installations, pastel color palettes with gold accents, and floral walls mixed with contemporary art. What's your color preference?"
-        : "Popular decor elements include marigold garlands, floral mandaps, traditional rangoli, fairy lights, and hanging jasmine. Colors range from vibrant reds and golds to elegant pastels. What style resonates with you?";
-    }
-
-    // Default response
-    return "That's a great question! I'm here to help with venue selection, vendor recommendations, budget planning, ceremony timelines, decor themes, and all aspects of Indian wedding planning. What specific area would you like guidance on?";
-  };
-
   const handleSendMessage = () => {
     if (!inputMessage.trim()) return;
 
-    const userMessage: ChatMessageType = {
-      id: Date.now().toString(),
-      sender: "user",
-      content: inputMessage,
-      timestamp: Date.now(),
-    };
-
-    const botMessage: ChatMessageType = {
-      id: (Date.now() + 1).toString(),
-      sender: "bot",
-      content: getBotResponse(inputMessage),
-      timestamp: Date.now() + 500,
-    };
-
-    const newMessages = [...messages, userMessage, botMessage];
-    setMessages(newMessages);
-    localStorage.setItem("vivaha-chat-messages", JSON.stringify(newMessages));
+    sendMessageMutation.mutate(
+      { message: inputMessage, quizData: quizData || undefined },
+      {
+        onError: (error) => {
+          toast({
+            variant: "destructive",
+            title: "Failed to send message",
+            description: error.message || "Please try again.",
+          });
+        },
+      }
+    );
     
     setInputMessage("");
     trackEvent("send", "chat", "message");
@@ -157,57 +88,99 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
       originalMessageId: message.id,
     };
 
-    const updated = [...savedItems, newItem];
-    setSavedItems(updated);
-    localStorage.setItem("vivaha-saved-items", JSON.stringify(updated));
+    addItemMutation.mutate(newItem, {
+      onSuccess: () => {
+        const labels = {
+          note: "Note",
+          reminder: "Reminder",
+          confirmed: "Confirmed",
+          archive: "Archive",
+        };
 
-    const labels = {
-      note: "Note",
-      reminder: "Reminder",
-      confirmed: "Confirmed",
-      archive: "Archive",
-    };
+        toast({
+          title: `Saved as ${labels[action]}`,
+          description: message.content.slice(0, 50) + "...",
+        });
 
-    toast({
-      title: `Saved as ${labels[action]}`,
-      description: message.content.slice(0, 50) + "...",
+        trackEvent("save", action, "context_menu");
+      },
+      onError: (error) => {
+        toast({
+          variant: "destructive",
+          title: "Failed to save",
+          description: error.message || "Please try again.",
+        });
+      },
     });
 
-    trackEvent("save", "chat", action);
     setContextMenu(null);
   };
 
-  const handleDeleteItem = (id: string) => {
-    const updated = savedItems.filter((item) => item.id !== id);
-    setSavedItems(updated);
-    localStorage.setItem("vivaha-saved-items", JSON.stringify(updated));
-    toast({ title: "Item deleted" });
+  const handleItemDelete = (itemId: string) => {
+    deleteItemMutation.mutate(itemId, {
+      onSuccess: () => {
+        toast({
+          title: "Item deleted",
+          description: "Successfully removed from your list.",
+        });
+      },
+      onError: (error) => {
+        toast({
+          variant: "destructive",
+          title: "Failed to delete",
+          description: error.message || "Please try again.",
+        });
+      },
+    });
   };
 
-  const handleArchiveItem = (id: string) => {
-    const updated = savedItems.map((item) =>
-      item.id === id ? { ...item, type: "archived" as const } : item
+  const handleItemToggle = (itemId: string, completed: boolean) => {
+    const item = savedItems.find((i) => i.id === itemId);
+    if (!item) return;
+
+    updateItemMutation.mutate(
+      { itemId, updates: { ...item, completed } },
+      {
+        onError: (error) => {
+          toast({
+            variant: "destructive",
+            title: "Failed to update",
+            description: error.message || "Please try again.",
+          });
+        },
+      }
     );
-    setSavedItems(updated);
-    localStorage.setItem("vivaha-saved-items", JSON.stringify(updated));
-    toast({ title: "Item archived" });
   };
 
-  const handleShare = async (type: "note" | "reminder" | "confirmed") => {
-    const items = savedItems.filter((item) => item.type === type);
-    const text = `My ${type}s:\n\n${items.map((item, i) => `${i + 1}. ${item.content}`).join("\n")}`;
+  const handleShare = async () => {
+    const shareText = `Check out Vivaha - Your AI Wedding Planning Assistant! Plan your dream Indian wedding with personalized recommendations.`;
+    const shareUrl = window.location.origin;
 
     if (navigator.share) {
       try {
-        await navigator.share({ text });
-        trackEvent("share", "list", type);
+        await navigator.share({
+          title: "Vivaha Wedding Planner",
+          text: shareText,
+          url: shareUrl,
+        });
+        trackEvent("share", "social", "web_share_api");
       } catch (error) {
-        console.log("Share cancelled");
+        if (error instanceof Error && error.name !== "AbortError") {
+          toast({
+            variant: "destructive",
+            title: "Failed to share",
+            description: "Please try again.",
+          });
+        }
       }
     } else {
-      navigator.clipboard.writeText(text);
-      toast({ title: "Copied to clipboard" });
+      setShareDialogOpen(true);
     }
+  };
+
+  const handleReportClick = () => {
+    setShowPaywall(true);
+    trackEvent("click", "report", "view_paywall");
   };
 
   const handleTabChange = (tab: string) => {
@@ -215,96 +188,117 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
     trackEvent("click", "tab", tab);
   };
 
-  const notes = savedItems.filter((item) => item.type === "note");
-  const reminders = savedItems.filter((item) => item.type === "reminder");
-  const confirmed = savedItems.filter((item) => item.type === "confirmed");
-  const score = Math.min(100, confirmed.length * 10);
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+    localStorage.setItem("vivaha-onboarding-complete", "true");
+    trackEvent("complete", "onboarding", "tour");
+  };
 
-  return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <ChatHeader onLogout={onLogout} />
-      <ChatTabs activeTab={activeTab} onTabChange={handleTabChange} />
+  // Filter saved items by type for current tab
+  const getFilteredItems = (): SavedItem[] => {
+    if (activeTab === "chat") return [];
+    return savedItems.filter((item) => item.type === activeTab);
+  };
 
-      <div className="flex-1 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 py-6 h-full flex gap-6">
-          <div className="flex-1 flex flex-col min-w-0">
-            {activeTab === "chat" && (
-              <>
-                <div
-                  className="flex-1 overflow-y-auto mb-4 space-y-4"
-                  data-testid="chat-container"
-                >
-                  {messages.map((message) => (
-                    <ChatMessage
-                      key={message.id}
-                      message={message}
-                      onLongPress={(id, x, y) => setContextMenu({ messageId: id, x, y })}
-                    />
-                  ))}
-                  <div ref={messagesEndRef} />
-                </div>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Type your message..."
-                    value={inputMessage}
-                    onChange={(e) => setInputMessage(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                    data-testid="input-chat-message"
-                  />
-                  <Button
-                    onClick={handleSendMessage}
-                    data-testid="button-send-message"
-                  >
-                    <Send className="w-4 h-4" />
-                  </Button>
-                </div>
-              </>
-            )}
-
-            {activeTab === "notes" && (
-              <SavedItemList
-                items={notes}
-                type="note"
-                onDelete={handleDeleteItem}
-                onArchive={handleArchiveItem}
-                onShare={() => handleShare("note")}
-              />
-            )}
-
-            {activeTab === "reminders" && (
-              <SavedItemList
-                items={reminders}
-                type="reminder"
-                onDelete={handleDeleteItem}
-                onArchive={handleArchiveItem}
-                onShare={() => handleShare("reminder")}
-              />
-            )}
-
-            {activeTab === "confirmed" && (
-              <SavedItemList
-                items={confirmed}
-                type="confirmed"
-                onDelete={handleDeleteItem}
-                onArchive={handleArchiveItem}
-                onShare={() => handleShare("confirmed")}
-              />
-            )}
-
-            {activeTab === "report" && (
-              <ReportPaywall
-                notes={notes.map((n) => n.content)}
-                reminders={reminders.map((r) => r.content)}
-                confirmed={confirmed.map((c) => c.content)}
-              />
-            )}
-          </div>
-
-          <div className="hidden lg:block w-80">
-            <ProgressTracker score={score} confirmedItems={confirmed.map((c) => c.content)} />
-          </div>
+  // Loading state
+  if (messagesLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">Loading your wedding plans...</p>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen bg-background">
+      <div className="flex flex-1 flex-col">
+        <ChatHeader
+          onLogout={onLogout}
+          onShare={handleShare}
+          onReportClick={handleReportClick}
+        />
+
+        <div className="border-b" id="chat-tabs-container">
+          <ChatTabs activeTab={activeTab} onTabChange={handleTabChange} />
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-4" id="chat-messages-container">
+          {activeTab === "chat" ? (
+            <>
+              {messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <p className="text-lg text-muted-foreground mb-2">Start planning your dream wedding!</p>
+                  <p className="text-sm text-muted-foreground">Ask me anything about venues, vendors, budgets, or traditions.</p>
+                </div>
+              ) : (
+                messages.map((message) => (
+                  <ChatMessage
+                    key={message.id}
+                    message={message}
+                    onLongPress={(e) => {
+                      setContextMenu({
+                        messageId: message.id,
+                        x: e.clientX,
+                        y: e.clientY,
+                      });
+                    }}
+                  />
+                ))
+              )}
+              <div ref={messagesEndRef} />
+            </>
+          ) : (
+            <SavedItemList
+              items={getFilteredItems()}
+              onDelete={handleItemDelete}
+              onToggle={handleItemToggle}
+              isLoading={itemsLoading}
+            />
+          )}
+        </div>
+
+        {activeTab === "chat" && (
+          <div className="border-t p-4">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendMessage();
+              }}
+              className="flex gap-2"
+            >
+              <Input
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                placeholder="Ask about venues, vendors, budgets..."
+                disabled={sendMessageMutation.isPending}
+                data-testid="input-chat-message"
+              />
+              <Button
+                type="submit"
+                size="icon"
+                disabled={!inputMessage.trim() || sendMessageMutation.isPending}
+                data-testid="button-send-message"
+              >
+                {sendMessageMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            </form>
+          </div>
+        )}
+      </div>
+
+      <aside className="w-80 border-l bg-card/50 p-4 overflow-y-auto hidden lg:block">
+        <ProgressTracker
+          score={progressData?.score || 0}
+          confirmedCount={progressData?.confirmedCount || 0}
+        />
+      </aside>
 
       {contextMenu && (
         <MessageContextMenu
@@ -316,7 +310,14 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
       )}
 
       {showOnboarding && (
-        <OnboardingTour onComplete={() => setShowOnboarding(false)} />
+        <OnboardingTour onComplete={handleOnboardingComplete} />
+      )}
+
+      {showPaywall && (
+        <ReportPaywall
+          open={showPaywall}
+          onOpenChange={setShowPaywall}
+        />
       )}
     </div>
   );

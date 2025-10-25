@@ -81,7 +81,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/chat/messages/:userId", async (req, res) => {
     try {
       const { userId } = req.params;
-      const messages = await storage.getChatMessages(userId);
+      let messages = await storage.getChatMessages(userId);
+      
+      // Initialize with welcome message if empty
+      if (messages.length === 0) {
+        const quiz = await storage.getQuizResponse(userId);
+        const welcomeContent = quiz
+          ? `Welcome! I see you're planning a ${getQuizStyleText(quiz.style)} wedding. I'm excited to help you create your perfect celebration! What would you like to know?`
+          : "Welcome to Vivaha Chat Bot! I'm here to help you plan your dream Indian wedding. How can I assist you today?";
+        
+        const welcomeMessage: import("@shared/schema").ChatMessage = {
+          id: Date.now().toString(),
+          sender: "bot",
+          content: welcomeContent,
+          timestamp: Date.now(),
+        };
+        
+        await storage.addChatMessage(userId, welcomeMessage);
+        messages = [welcomeMessage];
+      }
+      
       res.json(messages);
     } catch (error) {
       console.error("Chat fetch error:", error);
@@ -97,16 +116,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         quizData?: QuizResponse 
       };
       
-      // Generate bot response based on message content
+      // Store user message
+      const userMessage: import("@shared/schema").ChatMessage = {
+        id: Date.now().toString(),
+        sender: "user",
+        content: message,
+        timestamp: Date.now(),
+      };
+      await storage.addChatMessage(userId, userMessage);
+      
+      // Generate and store bot response
       const botResponse = generateBotResponse(message, quizData);
+      const botMessage: import("@shared/schema").ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        sender: "bot",
+        content: botResponse,
+        timestamp: Date.now() + 500,
+      };
+      await storage.addChatMessage(userId, botMessage);
       
       const chatResponse: ChatResponse = {
-        message: {
-          id: Date.now().toString(),
-          sender: "bot",
-          content: botResponse,
-          timestamp: Date.now(),
-        },
+        message: botMessage,
       };
       
       res.json(chatResponse);
@@ -195,6 +225,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
   return httpServer;
+}
+
+// Helper function for quiz style text
+function getQuizStyleText(style: string): string {
+  switch (style) {
+    case "traditional":
+      return "traditional ceremonies";
+    case "fusion":
+      return "fusion wedding with modern elements";
+    case "destination":
+      return "destination wedding at an exotic location";
+    default:
+      return "special";
+  }
 }
 
 // Bot response generator based on keywords

@@ -5,6 +5,13 @@ import type { ChatMessage, ChatResponse, QuizResponse } from "@shared/schema";
 export function useChatMessages(userId: string) {
   return useQuery<ChatMessage[]>({
     queryKey: ["/api/chat/messages", userId],
+    queryFn: async () => {
+      const response = await fetch(`/api/chat/messages/${userId}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch messages");
+      }
+      return response.json();
+    },
     enabled: !!userId,
   });
 }
