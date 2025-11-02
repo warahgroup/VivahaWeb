@@ -6,9 +6,10 @@ import { Menu } from "lucide-react";
 
 interface LandingHeaderProps {
   onGetStarted: () => void;
+  onAddVendor?: () => void;
 }
 
-export function LandingHeader({ onGetStarted }: LandingHeaderProps) {
+export function LandingHeader({ onGetStarted, onAddVendor }: LandingHeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [, setLocation] = useLocation();
 
@@ -35,6 +36,16 @@ export function LandingHeader({ onGetStarted }: LandingHeaderProps) {
           </h1>
           {/* Desktop actions */}
           <div className="hidden sm:flex items-center gap-3">
+            {onAddVendor && (
+              <Button
+                onClick={onAddVendor}
+                variant="outline"
+                data-testid="button-add-vendor-header"
+                className="font-medium"
+              >
+                Add Vendor
+              </Button>
+            )}
             <Button
               onClick={onGetStarted}
               data-testid="button-get-started-header"
@@ -54,6 +65,16 @@ export function LandingHeader({ onGetStarted }: LandingHeaderProps) {
               </SheetTrigger>
               <SheetContent side="right" className="w-80">
                 <div className="flex flex-col gap-3 mt-8">
+                  {onAddVendor && (
+                    <Button
+                      onClick={onAddVendor}
+                      variant="outline"
+                      data-testid="button-add-vendor-header-mobile"
+                      className="font-medium w-full"
+                    >
+                      Add Vendor
+                    </Button>
+                  )}
                   <Button
                     onClick={onGetStarted}
                     data-testid="button-get-started-header-mobile"

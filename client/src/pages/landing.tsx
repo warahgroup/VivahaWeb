@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useLocation } from "wouter";
 import { LandingHeader } from "@/components/landing-header";
 import { LandingHero } from "@/components/landing-hero";
 import { LandingAbout } from "@/components/landing-about";
@@ -21,10 +22,16 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [quizModalOpen, setQuizModalOpen] = useState(false);
   const [consultModalOpen, setConsultModalOpen] = useState(false);
+  const [, setLocation] = useLocation();
 
   const handleGetStarted = () => {
     setAuthModalOpen(true);
     trackEvent("click", "auth", "get_started");
+  };
+
+  const handleAddVendor = () => {
+    setLocation("/vendor-registration");
+    trackEvent("click", "vendor", "add_vendor");
   };
 
   const handleTakeQuiz = () => {
@@ -51,7 +58,7 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      <LandingHeader onGetStarted={handleGetStarted} />
+      <LandingHeader onGetStarted={handleGetStarted} onAddVendor={handleAddVendor} />
       <main className="pt-16 md:pt-20">
         <LandingHero onGetStarted={handleGetStarted} onTakeQuiz={handleTakeQuiz} />
         <LandingAbout />

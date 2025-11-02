@@ -11,6 +11,7 @@ import { signOut } from "./hooks/use-auth";
 import LandingPage from "@/pages/landing";
 import ChatPage from "@/pages/chat";
 import MockLoginPage from "@/pages/mock-login";
+import VendorRegistrationPage from "@/pages/vendor-registration";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -71,6 +72,9 @@ function Router() {
       </Route>
       <Route path="/mock-login">
         <MockLoginPage onLogin={handleLogin} />
+      </Route>
+      <Route path="/vendor-registration">
+        <VendorRegistrationPage />
       </Route>
       <Route component={NotFound} />
     </Switch>
