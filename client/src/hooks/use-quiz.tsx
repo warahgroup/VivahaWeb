@@ -1,16 +1,20 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "@/firebase";
+import { queryClient } from "@/lib/queryClient";
 import type { QuizResponse } from "@shared/schema";
 
 export function useQuizResponse(userId: string) {
   return useQuery<QuizResponse | null>({
-    queryKey: ["/api/quiz", userId],
+    queryKey: ["quizResponse", userId],
     queryFn: async () => {
-      const response = await fetch(`/api/quiz/${userId}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch quiz");
+      if (!userId) return null;
+      const userDocRef = doc(db, "users", userId);
+      const docSnap = await getDoc(userDocRef);
+      if (docSnap.exists()) {
+        return docSnap.data().quizResponse || null;
       }
-      return response.json();
+      return null;
     },
     enabled: !!userId,
   });
@@ -19,10 +23,13 @@ export function useQuizResponse(userId: string) {
 export function useSaveQuiz(userId: string) {
   return useMutation<{ success: boolean }, Error, QuizResponse>({
     mutationFn: async (quizData) => {
-      return apiRequest("POST", "/api/quiz", { userId, quizData });
+      if (!userId) throw new Error("User ID is required");
+      const userDocRef = doc(db, "users", userId);
+      await setDoc(userDocRef, { quizResponse: quizData }, { merge: true });
+      return { success: true };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/quiz", userId] });
+      queryClient.invalidateQueries({ queryKey: ["quizResponse", userId] });
     },
   });
 }

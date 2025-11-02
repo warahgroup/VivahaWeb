@@ -40,10 +40,10 @@ export function LandingFooter() {
               <input
                 type="email"
                 placeholder="Your email"
-                className="flex-1 px-4 py-2 text-sm rounded-md bg-background border border-input focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className="flex-1 px-4 py-2 text-sm rounded-md bg-background border border-input focus:outline-none focus:ring-2 focus:ring-primary/20 min-w-0"
                 data-testid="input-newsletter"
               />
-              <button className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover-elevate active-elevate-2">
+              <button className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover-elevate active-elevate-2 whitespace-nowrap">
                 Subscribe
               </button>
             </div>

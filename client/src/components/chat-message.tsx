@@ -1,3 +1,4 @@
+// /components/chat-message.tsx (Fixed: Use 'role' instead of 'sender' for alignment and colors; user on right (blue), AI on left (gray))
 import { useState, useRef, useEffect } from "react";
 import { Bot, User } from "lucide-react";
 import type { ChatMessage as ChatMessageType } from "@shared/schema";
@@ -31,7 +32,23 @@ export function ChatMessage({ message, onLongPress }: ChatMessageProps) {
     onLongPress(message.id, e.clientX, e.clientY);
   };
 
-  const isBot = message.sender === "bot";
+  // Fixed: Use 'role' from schema instead of 'sender'
+  const isBot = message.role === "assistant";
+
+  // Minimal-safe markdown: bold via **text** and newline support
+  const formatMessage = (text: string): string => {
+    const escapeHtml = (s: string) =>
+      s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+    const escaped = escapeHtml(text);
+    const withBold = escaped.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    return withBold.replace(/\n/g, "<br/>");
+  };
 
   return (
     <div
@@ -40,7 +57,7 @@ export function ChatMessage({ message, onLongPress }: ChatMessageProps) {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onContextMenu={handleContextMenu}
-      data-testid={`message-${message.sender}-${message.id}`}
+      data-testid={`message-${message.role}-${message.id}`}
     >
       {isBot && (
         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -54,7 +71,10 @@ export function ChatMessage({ message, onLongPress }: ChatMessageProps) {
             : "bg-primary text-primary-foreground rounded-tr-none"
         }`}
       >
-        <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+        <p
+          className="text-sm leading-relaxed"
+          dangerouslySetInnerHTML={{ __html: formatMessage(message.content) }}
+        />
       </div>
       {!isBot && (
         <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">

@@ -10,7 +10,11 @@ import type {
   SavedItem 
 } from "@shared/schema";
 
+// Export app for serverless use
+export let appInstance: Express | undefined = undefined;
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  appInstance = app;
   // Authentication routes
   app.post("/api/auth/login", async (req, res) => {
     try {
@@ -92,7 +96,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         const welcomeMessage: import("@shared/schema").ChatMessage = {
           id: Date.now().toString(),
-          sender: "bot",
+          role: "assistant",
           content: welcomeContent,
           timestamp: Date.now(),
         };
@@ -119,7 +123,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Store user message
       const userMessage: import("@shared/schema").ChatMessage = {
         id: Date.now().toString(),
-        sender: "user",
+        role: "user",
         content: message,
         timestamp: Date.now(),
       };
@@ -129,7 +133,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const botResponse = generateBotResponse(message, quizData);
       const botMessage: import("@shared/schema").ChatMessage = {
         id: (Date.now() + 1).toString(),
-        sender: "bot",
+        role: "assistant",
         content: botResponse,
         timestamp: Date.now() + 500,
       };
@@ -224,6 +228,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+  
+  // Return httpServer for development mode
+  if (process.env.NETLIFY !== "true") {
+    return httpServer;
+  }
+  
+  // For Netlify, just return a dummy server
   return httpServer;
 }
 

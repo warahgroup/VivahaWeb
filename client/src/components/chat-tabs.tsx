@@ -14,14 +14,14 @@ const tabs = [
 export function ChatTabs({ activeTab, onTabChange }: ChatTabsProps) {
   return (
     <div className="border-b bg-card sticky top-[57px] z-30">
-      <div className="max-w-7xl mx-auto px-4">
-        <nav className="flex gap-1 overflow-x-auto scrollbar-hide">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4">
+        <nav className="flex gap-1 overflow-x-auto scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none]">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
               data-testid={`button-tab-${tab.id}`}
-              className={`px-4 py-3 font-medium text-sm whitespace-nowrap transition-colors relative ${
+              className={`px-3 sm:px-4 py-3 font-medium text-sm whitespace-nowrap transition-colors relative ${
                 activeTab === tab.id
                   ? "text-primary border-b-4 border-primary"
                   : "text-muted-foreground hover:text-foreground"

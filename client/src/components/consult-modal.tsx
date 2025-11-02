@@ -63,7 +63,7 @@ export function ConsultModal({ open, onOpenChange }: ConsultModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-serif text-2xl">
             Book Free Consultation

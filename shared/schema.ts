@@ -29,10 +29,10 @@ export const quizResponseSchema = z.object({
 
 export type QuizResponse = z.infer<typeof quizResponseSchema>;
 
-// Chat message schema
+// Chat message schema (use 'role' to align with client and Firestore)
 export const chatMessageSchema = z.object({
   id: z.string(),
-  sender: z.enum(["user", "bot"]),
+  role: z.enum(["user", "assistant"]),
   content: z.string(),
   timestamp: z.number(),
 });

@@ -5,7 +5,7 @@ interface MessageContextMenuProps {
   x: number;
   y: number;
   onClose: () => void;
-  onAction: (action: "note" | "reminder" | "confirmed" | "archive") => void;
+  onAction: (action: "note" | "reminder" | "confirmed" | "archived") => void;
 }
 
 export function MessageContextMenu({ x, y, onClose, onAction }: MessageContextMenuProps) {
@@ -31,7 +31,7 @@ export function MessageContextMenu({ x, y, onClose, onAction }: MessageContextMe
     { id: "note", label: "Save as Note", icon: StickyNote },
     { id: "reminder", label: "Save as Reminder", icon: Clock },
     { id: "confirmed", label: "Mark Confirmed", icon: CheckCircle2 },
-    { id: "archive", label: "Archive", icon: Archive },
+    { id: "archived", label: "Archive", icon: Archive },
   ];
 
   // Adjust position to keep menu within viewport

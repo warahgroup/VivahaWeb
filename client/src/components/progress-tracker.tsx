@@ -2,10 +2,11 @@ import { CheckCircle2 } from "lucide-react";
 
 interface ProgressTrackerProps {
   score: number;
+  confirmedCount: number;
   confirmedItems: string[];
 }
 
-export function ProgressTracker({ score, confirmedItems }: ProgressTrackerProps) {
+export function ProgressTracker({ score, confirmedItems = [] }: ProgressTrackerProps) {
   const circumference = 2 * Math.PI * 45;
   const strokeDashoffset = circumference - (score / 100) * circumference;
 

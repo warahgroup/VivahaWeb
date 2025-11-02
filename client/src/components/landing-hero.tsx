@@ -20,7 +20,7 @@ export function LandingHero({ onGetStarted, onTakeQuiz }: LandingHeroProps) {
       </div>
 
       {/* Hero Content */}
-      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center pt-20">
+      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center pt-16 md:pt-24">
         <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6 leading-tight">
           Plan Your Dream Indian Wedding with Vivaha
         </h1>

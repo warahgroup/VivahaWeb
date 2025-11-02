@@ -52,7 +52,7 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
   return (
     <div className="min-h-screen bg-background">
       <LandingHeader onGetStarted={handleGetStarted} />
-      <main>
+      <main className="pt-16 md:pt-20">
         <LandingHero onGetStarted={handleGetStarted} onTakeQuiz={handleTakeQuiz} />
         <LandingAbout />
         <LandingWhoWeAre />
