@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,52 +12,158 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle2 } from "lucide-react";
+import { useForm, ValidationError } from "@formspree/react";
 
 interface ConsultModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function ConsultModal({ open, onOpenChange }: ConsultModalProps) {
+function ConsultationForm({ 
+  onSuccess, 
+  onClose 
+}: { 
+  onSuccess: () => void; 
+  onClose: () => void;
+}) {
+  const [state, handleSubmit] = useForm("mkgpaqzz");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [message, setMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
   const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!name || !email || !phone) {
-      toast({
-        variant: "destructive",
-        title: "Missing fields",
-        description: "Please fill in all required fields",
-      });
-      return;
-    }
-
-    setIsLoading(true);
-    
-    // Simulate booking submission
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsSubmitted(true);
+  useEffect(() => {
+    if (state.succeeded) {
       toast({
         title: "Consultation booked!",
         description: "Our team will contact you within 24 hours",
       });
-    }, 1000);
+      onSuccess();
+      // Reset form fields after successful submission
+      setTimeout(() => {
+        setName("");
+        setEmail("");
+        setPhone("");
+        setMessage("");
+        onClose();
+      }, 2000);
+    }
+  }, [state.succeeded, toast, onSuccess, onClose]);
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="name">Full Name *</Label>
+        <Input
+          id="name"
+          name="name"
+          placeholder="Your name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          data-testid="input-consult-name"
+          required
+        />
+        <ValidationError 
+          prefix="Name" 
+          field="name"
+          errors={state.errors}
+          className="text-xs text-destructive"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="consult-email">Email *</Label>
+        <Input
+          id="consult-email"
+          type="email"
+          name="email"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          data-testid="input-consult-email"
+          required
+        />
+        <ValidationError 
+          prefix="Email" 
+          field="email"
+          errors={state.errors}
+          className="text-xs text-destructive"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="phone">Phone Number *</Label>
+        <Input
+          id="phone"
+          type="tel"
+          name="phone"
+          placeholder="+91 98765 43210"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          data-testid="input-consult-phone"
+          required
+        />
+        <ValidationError 
+          prefix="Phone" 
+          field="phone"
+          errors={state.errors}
+          className="text-xs text-destructive"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="message">Message (Optional)</Label>
+        <Textarea
+          id="message"
+          name="message"
+          placeholder="Tell us about your wedding plans..."
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          data-testid="textarea-consult-message"
+          rows={3}
+        />
+        <ValidationError 
+          prefix="Message" 
+          field="message"
+          errors={state.errors}
+          className="text-xs text-destructive"
+        />
+      </div>
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={state.submitting}
+        data-testid="button-consult-submit"
+      >
+        {state.submitting ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Booking...
+          </>
+        ) : (
+          "Book Consultation"
+        )}
+      </Button>
+    </form>
+  );
+}
+
+export function ConsultModal({ open, onOpenChange }: ConsultModalProps) {
+  const [formKey, setFormKey] = useState(0);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (open) {
+      setFormKey(prev => prev + 1);
+      setIsSubmitted(false);
+    }
+  }, [open]);
+
+  const handleSuccess = () => {
+    setIsSubmitted(true);
   };
 
   const handleClose = () => {
     setIsSubmitted(false);
-    setName("");
-    setEmail("");
-    setPhone("");
-    setMessage("");
     onOpenChange(false);
   };
 
@@ -74,69 +180,7 @@ export function ConsultModal({ open, onOpenChange }: ConsultModalProps) {
         </DialogHeader>
         
         {!isSubmitted ? (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name *</Label>
-              <Input
-                id="name"
-                placeholder="Your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                data-testid="input-consult-name"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="consult-email">Email *</Label>
-              <Input
-                id="consult-email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                data-testid="input-consult-email"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number *</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="+91 98765 43210"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                data-testid="input-consult-phone"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="message">Message (Optional)</Label>
-              <Textarea
-                id="message"
-                placeholder="Tell us about your wedding plans..."
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                data-testid="textarea-consult-message"
-                rows={3}
-              />
-            </div>
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={isLoading}
-              data-testid="button-consult-submit"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Booking...
-                </>
-              ) : (
-                "Book Consultation"
-              )}
-            </Button>
-          </form>
+          <ConsultationForm key={formKey} onSuccess={handleSuccess} onClose={handleClose} />
         ) : (
           <div className="py-8 text-center">
             <CheckCircle2 className="w-16 h-16 text-primary mx-auto mb-4" />

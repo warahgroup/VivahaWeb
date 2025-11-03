@@ -11,12 +11,15 @@ import { ProgressTracker } from "@/components/progress-tracker";
 import { ReportPaywall } from "@/components/report-paywall";
 import { OnboardingTour } from "@/components/onboarding-tour";
 import { WelcomeForm } from "@/components/welcome-form";
+import { SmartSuggestions } from "@/components/smart-suggestions";
+import { TypingIndicator } from "@/components/typing-indicator";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useChatMessages, useSendMessage } from "@/hooks/use-chat";
 import { useSavedItems, useAddSavedItem, useDeleteSavedItem, useUpdateSavedItem } from "@/hooks/use-saved-items";
 import { useQuizResponse } from "@/hooks/use-quiz";
 import { useProgress } from "@/hooks/use-progress";
+import { useSpellCorrection } from "@/hooks/use-spell-correction";
 import { Send, Share2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ChatMessage as ChatMessageType, SavedItem, QuizResponse } from "@shared/schema";
@@ -35,6 +38,7 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
   const [isWelcomeFormSubmitted, setIsWelcomeFormSubmitted] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const { correctText } = useSpellCorrection();
 
   // React Query hooks
   const { data: messages = [], isLoading: messagesLoading } = useChatMessages(userId);
@@ -71,7 +75,7 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, sendMessageMutation.isPending]);
 
   useEffect(() => {
     const onboardingComplete = localStorage.getItem("vivaha-onboarding-complete");
@@ -131,14 +135,15 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
     trackEvent("send", "chat", "welcome_form");
   };
 
-  const handleSendMessage = () => {
-    if (!inputMessage.trim()) return;
+  const handleSendMessage = (messageToSend?: string) => {
+    const message = messageToSend || inputMessage;
+    if (!message.trim()) return;
 
     // Optimistic UI: append the user's message immediately so it doesn't disappear
     const optimisticMessage: ChatMessageType = {
       id: `temp-${Date.now()}`,
       role: "user",
-      content: inputMessage,
+      content: message,
       timestamp: Date.now(),
     } as ChatMessageType;
     queryClient.setQueryData<ChatMessageType[] | undefined>(["chatMessages", userId], (old) => {
@@ -147,7 +152,7 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
     });
 
     sendMessageMutation.mutate(
-      { message: inputMessage, quizData: quizData || undefined },
+      { message: message, quizData: quizData || undefined },
       {
         onError: (error) => {
           toast({
@@ -163,10 +168,27 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
         },
       }
     );
-    
+
     setInputMessage("");
     trackEvent("send", "chat", "message");
   };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    // Only fill the input field with the suggestion, don't auto-send
+    setInputMessage(suggestion);
+    // Focus the input after setting the value (optional, for better UX)
+    setTimeout(() => {
+      const input = document.querySelector('[data-testid="input-chat-message"]') as HTMLInputElement;
+      if (input) {
+        input.focus();
+        // Move cursor to end of text
+        input.setSelectionRange(suggestion.length, suggestion.length);
+      }
+    }, 0);
+  };
+
+  // Calculate message count (only user messages)
+  const userMessageCount = messages.filter(m => m.role === "user").length;
 
   const handleContextMenuAction = (action: "note" | "reminder" | "confirmed" | "archived") => {
     if (!contextMenu) return;
@@ -354,7 +376,7 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
 
   return (
     <div className="flex h-dvh bg-background">
-      <div className="flex flex-1 flex-col max-w-[110rem] mx-auto w-full">
+      <div className="flex flex-1 flex-col max-w-[110rem] mx-auto w-full overflow-hidden">
         <ChatHeader onLogout={onLogout} />
 
         <div className="border-b" id="chat-tabs-container">
@@ -362,8 +384,9 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
         </div>
 
         <div
-          className="flex-1 overflow-y-auto p-4 space-y-4 pb-28 sm:pb-32 lg:pb-6"
+          className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 bg-gray-100"
           id="chat-messages-container"
+          style={{ backgroundColor: '#f5f5f5' }}
         >
           {activeTab === "chat" ? (
             <>
@@ -373,13 +396,17 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
                   isSubmitting={sendMessageMutation.isPending}
                 />
               ) : (
-                messages.map((message) => (
-                  <ChatMessage
-                    key={message.id}
-                    message={message}                    
-                    onLongPress={(messageId, x, y) => setContextMenu({ messageId, x, y })}
-                  />
-                ))
+                <>
+                  {messages.map((message) => (
+                    <ChatMessage
+                      key={message.id}
+                      message={message}                    
+                      onLongPress={(messageId, x, y) => setContextMenu({ messageId, x, y })}
+                    />
+                  ))}
+                  {/* Show typing indicator when AI is responding */}
+                  {sendMessageMutation.isPending && <TypingIndicator />}
+                </>
               )}
               <div ref={messagesEndRef} />
             </>
@@ -405,9 +432,18 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
 
         {activeTab === "chat" && (
           <div
-            className="sticky bottom-0 left-0 right-0 border-t p-3 sm:p-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75"
-            style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
+            className="bg-white border-t p-3 sm:p-4 flex-shrink-0"
+            style={{ 
+              paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
+              boxShadow: "0 -2px 8px rgba(0, 0, 0, 0.1)"
+            }}
           >
+            {/* Smart Suggestions */}
+            <SmartSuggestions
+              inputText={inputMessage}
+              messageCount={userMessageCount}
+              onSuggestionClick={handleSuggestionClick}
+            />
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -417,16 +453,23 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
             >
               <Input
                 value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
+                onChange={(e) => {
+                  const inputValue = e.target.value;
+                  // Apply spell correction in real-time
+                  const corrected = correctText(inputValue);
+                  setInputMessage(corrected);
+                }}
                 placeholder="Ask about venues, vendors, budgets..."
                 disabled={sendMessageMutation.isPending || (messages.length === 0 && !isWelcomeFormSubmitted)}
                 data-testid="input-chat-message"
+                className="rounded-full bg-white border-gray-300"
               />
               <Button
                 type="submit"
                 size="icon"
                 disabled={!inputMessage.trim() || sendMessageMutation.isPending || (messages.length === 0 && !isWelcomeFormSubmitted)}
                 data-testid="button-send-message"
+                className="rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex-shrink-0"
               >
                 {sendMessageMutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

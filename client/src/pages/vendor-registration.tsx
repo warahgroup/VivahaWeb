@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,9 +13,11 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { useForm, ValidationError } from "@formspree/react";
 
 export default function VendorRegistrationPage() {
   const [, setLocation] = useLocation();
+  const [state, handleSubmit] = useForm("mgvpbnzk");
   const [formData, setFormData] = useState({
     businessName: "",
     contactName: "",
@@ -24,7 +26,6 @@ export default function VendorRegistrationPage() {
     customServiceType: "",
     city: "",
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCustomService, setShowCustomService] = useState(false);
 
   const serviceTypes = [
@@ -44,7 +45,7 @@ export default function VendorRegistrationPage() {
     "Other",
   ];
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
     // Validation
@@ -58,13 +59,12 @@ export default function VendorRegistrationPage() {
       return;
     }
 
-    setIsSubmitting(true);
+    // Submit to Formspree
+    await handleSubmit(e);
+  };
 
-    try {
-      // TODO: Implement API call to save vendor data
-      // For now, we'll just show a success message
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+  useEffect(() => {
+    if (state.succeeded) {
       toast({
         title: "Registration Successful!",
         description: "Thank you for registering your business. We'll get in touch soon.",
@@ -85,16 +85,8 @@ export default function VendorRegistrationPage() {
       setTimeout(() => {
         setLocation("/");
       }, 2000);
-    } catch (error) {
-      toast({
-        title: "Registration Failed",
-        description: "Please try again later.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+  }, [state.succeeded, toast, setLocation]);
 
   const handleServiceTypeChange = (value: string) => {
     setFormData({ ...formData, serviceType: value, customServiceType: "" });
@@ -122,7 +114,7 @@ export default function VendorRegistrationPage() {
           </CardHeader>
 
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleFormSubmit} className="space-y-6">
               {/* Business Name */}
               <div className="space-y-2">
                 <Label htmlFor="businessName" className="text-base">
@@ -130,6 +122,7 @@ export default function VendorRegistrationPage() {
                 </Label>
                 <Input
                   id="businessName"
+                  name="businessName"
                   type="text"
                   placeholder="e.g., Royal Wedding Caterers"
                   value={formData.businessName}
@@ -140,6 +133,12 @@ export default function VendorRegistrationPage() {
                   className="h-11"
                   data-testid="input-business-name"
                 />
+                <ValidationError 
+                  prefix="Business Name" 
+                  field="businessName"
+                  errors={state.errors}
+                  className="text-xs text-destructive"
+                />
               </div>
 
               {/* Contact Name */}
@@ -149,6 +148,7 @@ export default function VendorRegistrationPage() {
                 </Label>
                 <Input
                   id="contactName"
+                  name="contactName"
                   type="text"
                   placeholder="e.g., Rajesh Kumar"
                   value={formData.contactName}
@@ -159,6 +159,12 @@ export default function VendorRegistrationPage() {
                   className="h-11"
                   data-testid="input-contact-name"
                 />
+                <ValidationError 
+                  prefix="Contact Name" 
+                  field="contactName"
+                  errors={state.errors}
+                  className="text-xs text-destructive"
+                />
               </div>
 
               {/* Phone Number */}
@@ -168,6 +174,7 @@ export default function VendorRegistrationPage() {
                 </Label>
                 <Input
                   id="phoneNumber"
+                  name="phoneNumber"
                   type="tel"
                   placeholder="e.g., +91 98765 43210"
                   value={formData.phoneNumber}
@@ -178,6 +185,12 @@ export default function VendorRegistrationPage() {
                   className="h-11"
                   data-testid="input-phone-number"
                 />
+                <ValidationError 
+                  prefix="Phone Number" 
+                  field="phoneNumber"
+                  errors={state.errors}
+                  className="text-xs text-destructive"
+                />
               </div>
 
               {/* Service Type */}
@@ -185,6 +198,12 @@ export default function VendorRegistrationPage() {
                 <Label htmlFor="serviceType" className="text-base">
                   What type of service do you provide? *
                 </Label>
+                {/* Hidden input for Formspree to capture the service type */}
+                <input
+                  type="hidden"
+                  name="serviceType"
+                  value={formData.serviceType}
+                />
                 <Select
                   value={formData.serviceType}
                   onValueChange={handleServiceTypeChange}
@@ -201,6 +220,12 @@ export default function VendorRegistrationPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <ValidationError 
+                  prefix="Service Type" 
+                  field="serviceType"
+                  errors={state.errors}
+                  className="text-xs text-destructive"
+                />
 
                 {/* Custom Service Type Input */}
                 {showCustomService && (
@@ -210,6 +235,7 @@ export default function VendorRegistrationPage() {
                     </Label>
                     <Input
                       id="customServiceType"
+                      name="customServiceType"
                       type="text"
                       placeholder="Enter your service type"
                       value={formData.customServiceType}
@@ -219,6 +245,12 @@ export default function VendorRegistrationPage() {
                       required={showCustomService}
                       className="h-11"
                       data-testid="input-custom-service-type"
+                    />
+                    <ValidationError 
+                      prefix="Custom Service Type" 
+                      field="customServiceType"
+                      errors={state.errors}
+                      className="text-xs text-destructive"
                     />
                   </div>
                 )}
@@ -231,6 +263,7 @@ export default function VendorRegistrationPage() {
                 </Label>
                 <Input
                   id="city"
+                  name="city"
                   type="text"
                   placeholder="e.g., Mumbai, Maharashtra"
                   value={formData.city}
@@ -241,6 +274,12 @@ export default function VendorRegistrationPage() {
                   className="h-11"
                   data-testid="input-city"
                 />
+                <ValidationError 
+                  prefix="City" 
+                  field="city"
+                  errors={state.errors}
+                  className="text-xs text-destructive"
+                />
               </div>
 
               {/* Submit Button */}
@@ -248,10 +287,10 @@ export default function VendorRegistrationPage() {
                 <Button
                   type="submit"
                   className="w-full h-12 text-base font-semibold"
-                  disabled={isSubmitting}
+                  disabled={state.submitting}
                   data-testid="button-submit-vendor"
                 >
-                  {isSubmitting ? "Registering..." : "Register My Business"}
+                  {state.submitting ? "Registering..." : "Register My Business"}
                 </Button>
               </div>
             </form>
