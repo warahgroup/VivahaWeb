@@ -122,6 +122,21 @@
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
+@keyframes pulseGlow {
+  0% {
+    box-shadow: 0 20px 45px -15px rgba(244, 63, 94, 0.55);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 30px 65px -20px rgba(236, 72, 153, 0.7);
+    transform: scale(1.06);
+  }
+  100% {
+    box-shadow: 0 20px 45px -15px rgba(244, 63, 94, 0.55);
+    transform: scale(1);
+  }
+}
+
 .dark {
   --button-outline: rgba(255,255,255, .10);
   --badge-outline: rgba(255,255,255, .05);

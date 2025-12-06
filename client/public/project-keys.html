@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <title>Project Keys Dashboard</title>
+
+    <style>
+      :root {
+        --bg: #f5f7fa;
+        --card-bg: #ffffff;
+        --accent: #2f4fc1;
+        --accent-dark: #233b92;
+        --text: #1f2933;
+        --muted: #607087;
+        --border: #d8e0ed;
+        --danger: #d64545;
+        --shadow: 0 14px 40px rgba(24, 34, 66, 0.14);
+        font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #eef2ff 0%, #f9fafc 100%);
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+      }
+
+      main {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 16px 120px;
+      }
+
+      /* ---------- LOGIN PANEL ---------- */
+      .login-panel {
+        width: min(420px, 100%);
+        padding: 40px 36px;
+        background: var(--card-bg);
+        border-radius: 20px;
+        box-shadow: var(--shadow);
+      }
+
+      .login-panel h1 {
+        margin: 0 0 12px;
+        font-size: 28px;
+        color: var(--accent-dark);
+      }
+
+      .login-panel p {
+        margin: 0 0 30px;
+        color: var(--muted);
+        font-size: 15px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--muted);
+      }
+
+      input[type="text"],
+      input[type="password"],
+      input[type="search"],
+      select,
+      textarea {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: #fbfcff;
+        font-size: 15px;
+        transition: border 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      input:focus,
+      select:focus,
+      textarea:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(47, 79, 193, 0.18);
+      }
+
+      button {
+        cursor: pointer;
+        border: none;
+        border-radius: 12px;
+        padding: 12px 16px;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 600;
+        font-size: 15px;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 20px rgba(35, 59, 146, 0.25);
+        background: var(--accent-dark);
+      }
+
+      .error-msg {
+        margin-top: 16px;
+        color: var(--danger);
+        font-weight: 600;
+        font-size: 14px;
+      }
+
+      /* ---------- DASHBOARD ---------- */
+      .dashboard {
+        width: min(1100px, 100%);
+        display: none;
+        flex-direction: column;
+        gap: 28px;
+      }
+
+      .top-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+      }
+
+      .top-row h1 {
+        margin: 0;
+        font-size: 32px;
+        font-weight: 600;
+        color: var(--accent-dark);
+      }
+
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .controls button {
+        background: #fff;
+        color: var(--accent);
+        border: 1px solid var(--border);
+        min-width: 120px;
+      }
+
+      .controls button:hover {
+        background: rgba(47, 79, 193, 0.1);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 20px;
+      }
+
+      .key-card {
+        background: var(--card-bg);
+        border-radius: 18px;
+        padding: 22px;
+        box-shadow: var(--shadow);
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      .key-card header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .key-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--accent-dark);
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        background: rgba(47, 79, 193, 0.14);
+        color: var(--accent-dark);
+      }
+
+      .meta {
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--muted);
+      }
+
+      .value-block {
+        background: #f3f6ff;
+        border-radius: 14px;
+        padding: 14px;
+        border: 1px dashed rgba(47, 79, 193, 0.4);
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 14px;
+        word-break: break-word;
+        min-height: 46px;
+        display: flex;
+        align-items: center;
+        color: var(--accent-dark);
+      }
+
+      .value-block.blur {
+        filter: blur(6px);
+        color: transparent;
+      }
+
+      .sensitive-flag {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--danger);
+      }
+
+      .card-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .card-actions button {
+        flex: 1 1 auto;
+        min-width: 90px;
+        padding: 10px 12px;
+        background: rgba(47, 79, 193, 0.08);
+        color: var(--accent-dark);
+        border: 1px solid rgba(47, 79, 193, 0.22);
+      }
+
+      .card-actions button:hover {
+        background: rgba(47, 79, 193, 0.18);
+      }
+
+      /* ---------- ADD BUTTON ---------- */
+      .fab {
+        position: fixed;
+        bottom: 28px;
+        right: 28px;
+        width: 60px;
+        height: 60px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        font-size: 26px;
+        background: linear-gradient(135deg, #ff7a7a, #fa4d4d);
+        color: #fff;
+        border: none;
+        box-shadow: 0 20px 30px rgba(250, 77, 77, 0.4);
+        z-index: 20;
+      }
+
+      .fab:hover {
+        background: linear-gradient(135deg, #ff6363, #f53636);
+      }
+
+      /* ---------- MODAL ---------- */
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(16, 22, 48, 0.45);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+        z-index: 25;
+      }
+
+      .modal {
+        width: min(420px, 92vw);
+        background: var(--card-bg);
+        border-radius: 20px;
+        padding: 30px;
+        box-shadow: 0 32px 60px rgba(24, 34, 66, 0.25);
+        position: relative;
+      }
+
+      .modal h2 {
+        margin: 0 0 20px;
+        color: var(--accent-dark);
+        font-size: 24px;
+      }
+
+      .form-row {
+        display: grid;
+        gap: 12px;
+      }
+
+      .inline-two {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      }
+
+      textarea {
+        min-height: 90px;
+        resize: vertical;
+      }
+
+      .checkbox-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+
+      .checkbox-row input {
+        width: auto;
+        accent-color: var(--accent);
+      }
+
+      .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      .modal-actions .secondary {
+        background: #f1f3fb;
+        color: var(--accent);
+        border: 1px solid rgba(47, 79, 193, 0.15);
+      }
+
+      .modal-actions .secondary:hover {
+        background: rgba(47, 79, 193, 0.18);
+      }
+
+      footer {
+        text-align: center;
+        padding: 20px 12px 34px;
+        font-size: 13px;
+        color: var(--danger);
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+
+      @media (max-width: 640px) {
+        main {
+          padding-bottom: 160px;
+        }
+
+        .controls {
+          width: 100%;
+          justify-content: space-between;
+        }
+
+        .fab {
+          bottom: 18px;
+          right: 18px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <main>
+      <!-- LOGIN SCREEN -->
+      <section id="loginView" class="login-panel" aria-label="login">
+        <h1>Project Keys Access</h1>
+        <p>Authenticate to review and manage integration keys.</p>
+
+        <form id="loginForm" autocomplete="off">
+          <div class="form-row">
+            <label for="userId">User ID</label>
+            <input
+              type="text"
+              id="userId"
+              name="userId"
+              placeholder="Enter your user ID"
+              required
+            />
+          </div>
+
+          <div class="form-row" style="margin-top: 18px;">
+            <label for="password">Password</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              placeholder="Enter your password"
+              required
+            />
+          </div>
+
+          <button type="submit" style="margin-top: 28px; width: 100%;">Sign In</button>
+          <div id="loginError" class="error-msg" role="alert" aria-live="assertive"></div>
+        </form>
+      </section>
+
+      <!-- DASHBOARD -->
+      <section
+        id="dashboardView"
+        class="dashboard"
+        aria-hidden="true"
+        aria-label="keys dashboard"
+      >
+        <div class="top-row">
+          <h1>Project Keys Dashboard</h1>
+          <div class="controls">
+            <button type="button" id="showAllBtn">Show All</button>
+            <button type="button" id="hideAllBtn">Hide All</button>
+            <button type="button" id="exportBtn">Export JSON</button>
+          </div>
+        </div>
+
+        <div id="keysGrid" class="grid" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <button
+      type="button"
+      id="addKeyBtn"
+      class="fab"
+      title="Add key"
+      aria-label="Add key"
+    >
+      ➕
+    </button>
+
+    <!-- ADD KEY MODAL -->
+    <div
+      id="modalBackdrop"
+      class="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modalTitle"
+    >
+      <div class="modal">
+        <h2 id="modalTitle">Add New Key</h2>
+
+        <form id="addKeyForm">
+          <div class="form-row">
+            <label for="keyName">Key name</label>
+            <input type="text" id="keyName" name="keyName" required />
+          </div>
+
+          <div class="form-row">
+            <label for="keyType">Type</label>
+            <input
+              type="text"
+              id="keyType"
+              name="keyType"
+              placeholder="API, OAuth, Database..."
+              required
+            />
+          </div>
+
+          <div class="form-row">
+            <label for="keySummary">Summary</label>
+            <textarea
+              id="keySummary"
+              name="keySummary"
+              maxlength="160"
+              required
+            ></textarea>
+          </div>
+
+          <div class="form-row">
+            <label for="keyValue">Value</label>
+            <textarea id="keyValue" name="keyValue" required></textarea>
+          </div>
+
+          <div class="inline-two">
+            <div class="form-row">
+              <label for="keyOwner">Owner</label>
+              <input type="text" id="keyOwner" name="keyOwner" required />
+            </div>
+            <div class="form-row">
+              <label for="keyPriority">Priority</label>
+              <select id="keyPriority" name="keyPriority" required>
+                <option value="High">High</option>
+                <option value="Medium" selected>Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label for="keyNotes">Notes</label>
+            <textarea
+              id="keyNotes"
+              name="keyNotes"
+              placeholder="Rotation details, usage limits…"
+            ></textarea>
+          </div>
+
+          <div class="checkbox-row">
+            <input type="checkbox" id="keySensitive" name="keySensitive" />
+            <label for="keySensitive" style="margin: 0;">Mark as sensitive</label>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="secondary" id="cancelModalBtn">Cancel</button>
+            <button type="submit">Add Key</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <footer>
+      ⚠️ Demo only — don’t use real secrets.
+    </footer>
+
+    <script>
+      (function () {
+        const SESSION_KEY = "pkd_session";
+
+        const loginView = document.getElementById("loginView");
+        const dashboardView = document.getElementById("dashboardView");
+        const loginForm = document.getElementById("loginForm");
+        const loginError = document.getElementById("loginError");
+        const keysGrid = document.getElementById("keysGrid");
+        const showAllBtn = document.getElementById("showAllBtn");
+        const hideAllBtn = document.getElementById("hideAllBtn");
+        const exportBtn = document.getElementById("exportBtn");
+        const addKeyBtn = document.getElementById("addKeyBtn");
+        const modalBackdrop = document.getElementById("modalBackdrop");
+        const addKeyForm = document.getElementById("addKeyForm");
+        const cancelModalBtn = document.getElementById("cancelModalBtn");
+
+        let keys = [
+          {
+            id: crypto.randomUUID(),
+            name: "Gateway API Key",
+            type: "REST API",
+            summary: "Primary gateway key used for partner orchestration.",
+            value: "gw_live_0af93-12abf-44ef90",
+            owner: "Integration Ops",
+            priority: "High",
+            sensitive: true,
+            notes: "Rotate every quarter. Required for onboarding partners."
+          },
+          {
+            id: crypto.randomUUID(),
+            name: "Analytics Stream Token",
+            type: "Streaming",
+            summary: "Publishes anonymized telemetry to analytics bus.",
+            value: "stream_token_a1b2-c3d4",
+            owner: "Data Platform",
+            priority: "Medium",
+            sensitive: false,
+            notes: "Read-only scope. Safe for demos."
+          },
+          {
+            id: crypto.randomUUID(),
+            name: "Sandbox OAuth Secret",
+            type: "OAuth 2.0",
+            summary: "Client secret for internal sandbox testing flows.",
+            value: "oauth_sbx_secret_XYZ-7788",
+            owner: "Dev Experience",
+            priority: "Low",
+            sensitive: true,
+            notes: "Never reuse in production."
+          }
+        ];
+
+        // Track whether each key value is visible (default hidden)
+        const visibility = new Map(keys.map((key) => [key.id, false]));
+
+        const authenticated = () => localStorage.getItem(SESSION_KEY) === "true";
+
+        const toggleViews = (show) => {
+          keys.forEach((key) => visibility.set(key.id, show));
+          renderKeys();
+        };
+
+        const renderKeys = () => {
+          keysGrid.innerHTML = "";
+
+          if (!keys.length) {
+            const empty = document.createElement("div");
+            empty.textContent = "No keys yet. Use ➕ Add Key to create one.";
+            empty.style.color = "var(--muted)";
+            empty.style.fontWeight = "600";
+            empty.style.fontSize = "15px";
+            keysGrid.appendChild(empty);
+            return;
+          }
+
+          keys.forEach((key) => {
+            const card = document.createElement("article");
+            card.className = "key-card";
+
+            const header = document.createElement("header");
+            const title = document.createElement("div");
+            title.className = "key-title";
+            title.textContent = key.name;
+
+            const badge = document.createElement("span");
+            badge.className = "badge";
+            badge.textContent = key.type;
+
+            header.appendChild(title);
+            header.appendChild(badge);
+
+            const meta = document.createElement("div");
+            meta.className = "meta";
+            meta.innerHTML = `
+              <strong>Summary:</strong> ${key.summary}<br />
+              <strong>Owner:</strong> ${key.owner} • <strong>Priority:</strong> ${key.priority}
+            `;
+
+            const valueBlock = document.createElement("div");
+            valueBlock.className = "value-block";
+            valueBlock.textContent = key.value;
+            if (!visibility.get(key.id)) {
+              valueBlock.classList.add("blur");
+            }
+
+            const sensitiveFlag = document.createElement("div");
+            sensitiveFlag.className = "sensitive-flag";
+            sensitiveFlag.textContent = key.sensitive ? "Sensitive" : "";
+
+            const actions = document.createElement("div");
+            actions.className = "card-actions";
+
+            const eyeBtn = document.createElement("button");
+            eyeBtn.type = "button";
+            const isVisible = visibility.get(key.id);
+            eyeBtn.textContent = isVisible ? "Hide Value" : "Show Value";
+            eyeBtn.addEventListener("click", () => {
+              visibility.set(key.id, !isVisible);
+              renderKeys();
+            });
+
+            const copyBtn = document.createElement("button");
+            copyBtn.type = "button";
+            copyBtn.textContent = "Copy";
+            copyBtn.disabled = !isVisible;
+            copyBtn.addEventListener("click", async () => {
+              try {
+                await navigator.clipboard.writeText(key.value);
+                copyBtn.textContent = "Copied!";
+                setTimeout(() => (copyBtn.textContent = "Copy"), 1600);
+              } catch {
+                copyBtn.textContent = "Copy failed";
+                copyBtn.style.background = "#fde1e1";
+                copyBtn.style.color = "var(--danger)";
+                setTimeout(() => {
+                  copyBtn.textContent = "Copy";
+                  copyBtn.style.background = "rgba(47, 79, 193, 0.08)";
+                  copyBtn.style.color = "var(--accent-dark)";
+                }, 1600);
+              }
+            });
+
+            const infoBtn = document.createElement("button");
+            infoBtn.type = "button";
+            infoBtn.textContent = "Info";
+            infoBtn.addEventListener("click", () => {
+              alert(`${key.name}\n\nNotes:\n${key.notes || "No notes added."}`);
+            });
+
+            actions.appendChild(eyeBtn);
+            actions.appendChild(copyBtn);
+            actions.appendChild(infoBtn);
+
+            card.appendChild(header);
+            card.appendChild(meta);
+            card.appendChild(valueBlock);
+            if (key.sensitive) card.appendChild(sensitiveFlag);
+            card.appendChild(actions);
+
+            keysGrid.appendChild(card);
+          });
+        };
+
+        const showDashboard = () => {
+          loginView.style.display = "none";
+          dashboardView.style.display = "flex";
+          dashboardView.setAttribute("aria-hidden", "false");
+          renderKeys();
+        };
+
+        const showLogin = () => {
+          loginView.style.display = "block";
+          dashboardView.style.display = "none";
+          dashboardView.setAttribute("aria-hidden", "true");
+        };
+
+        const downloadKeys = () => {
+          const data = JSON.stringify(keys, null, 2);
+          const blob = new Blob([data], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = "project-keys.json";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        };
+
+        const toggleModal = (show) => {
+          modalBackdrop.style.display = show ? "flex" : "none";
+          if (!show) addKeyForm.reset();
+        };
+
+        /* ---------- Event bindings ---------- */
+        loginForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          loginError.textContent = "";
+
+          const formData = new FormData(loginForm);
+          const userId = formData.get("userId");
+          const password = formData.get("password");
+
+          if (userId === "admin" && password === "adminkey123") {
+            localStorage.setItem(SESSION_KEY, "true");
+            showDashboard();
+          } else {
+            loginError.textContent = "Invalid credentials. Please try again.";
+          }
+        });
+
+        showAllBtn.addEventListener("click", () => toggleViews(true));
+        hideAllBtn.addEventListener("click", () => toggleViews(false));
+        exportBtn.addEventListener("click", downloadKeys);
+
+        addKeyBtn.addEventListener("click", () => toggleModal(true));
+        cancelModalBtn.addEventListener("click", () => toggleModal(false));
+        modalBackdrop.addEventListener("click", (event) => {
+          if (event.target === modalBackdrop) toggleModal(false);
+        });
+
+        addKeyForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const formData = new FormData(addKeyForm);
+
+          const newKey = {
+            id: crypto.randomUUID(),
+            name: formData.get("keyName").toString().trim(),
+            type: formData.get("keyType").toString().trim(),
+            summary: formData.get("keySummary").toString().trim(),
+            value: formData.get("keyValue").toString(),
+            owner: formData.get("keyOwner").toString().trim(),
+            priority: formData.get("keyPriority").toString(),
+            sensitive: Boolean(formData.get("keySensitive")),
+            notes: formData.get("keyNotes").toString().trim()
+          };
+
+          keys.unshift(newKey);
+          visibility.set(newKey.id, false);
+          toggleModal(false);
+          renderKeys();
+        });
+
+        /* ---------- Init ---------- */
+        if (authenticated()) {
+          showDashboard();
+        } else {
+          showLogin();
+        }
+      })();
+    </script>
+  </body>
+</html>
+
+

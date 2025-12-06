@@ -12,6 +12,13 @@ import LandingPage from "@/pages/landing";
 import ChatPage from "@/pages/chat";
 import MockLoginPage from "@/pages/mock-login";
 import VendorRegistrationPage from "@/pages/vendor-registration";
+import MahalListPage from "@/pages/mahal-list";
+import MahalDetails from "@/pages/mahal-details";
+import AddMahalPage from "@/pages/add-mahal";
+import AdminPage from "@/pages/admin";
+import AdminPackagesPage from "@/pages/admin-packages";
+import PackagesPage from "@/pages/packages";
+import SetupSampleMahalsPage from "@/pages/setup-sample-mahals";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -75,6 +82,31 @@ function Router() {
       </Route>
       <Route path="/vendor-registration">
         <VendorRegistrationPage />
+      </Route>
+      <Route path="/mahals">
+        <MahalListPage />
+      </Route>
+      <Route path="/mahal/:id">
+        {(params) => <MahalDetails params={params} />}
+      </Route>
+      <Route path="/add-mahal">
+        <AddMahalPage />
+      </Route>
+      <Route path="/admin">
+        <AdminPage />
+      </Route>
+      <Route path="/admin-packages">
+        <AdminPackagesPage />
+      </Route>
+      <Route path="/packages">
+        {isLoggedIn && userId ? (
+          <PackagesPage userId={userId} />
+        ) : (
+          <LandingPage onLogin={handleLogin} />
+        )}
+      </Route>
+      <Route path="/setup-sample-mahals">
+        <SetupSampleMahalsPage />
       </Route>
       <Route component={NotFound} />
     </Switch>

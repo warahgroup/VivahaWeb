@@ -35,57 +35,94 @@ export function useSendMessage(userId: string) {
   >({
     mutationFn: async ({ message, quizData }) => {
       const messagesCollection = collection(db, "users", userId, "chatMessages");
-      
-      try {
-        // 1. Save user message to Firestore
-        await addDoc(messagesCollection, {
-          role: "user",
-          content: message,
-          timestamp: Date.now(),
-        });
 
-        // Prepare message with quiz context
-        const fullMessage = quizData
-          ? `${JSON.stringify(quizData)} | ${message}`
-          : message;
+      // 1. Save user message to Firestore (so chat history persists even if assistant is offline)
+      await addDoc(messagesCollection, {
+        role: "user",
+        content: message,
+        timestamp: Date.now(),
+      });
 
-        // POST to Worker (expects user_id and message)
-        const response = await fetch(
-          "https://vivagabot.warahgroup.workers.dev/chat",
-          {
+      // Prepare payload enriched with quiz context
+      const fullMessage = quizData
+        ? `${JSON.stringify(quizData)} | ${message}`
+        : message;
+
+      const workerUrl =
+        import.meta.env.VITE_CHAT_WORKER_URL ??
+        "https://vivagabot.warahgroup.workers.dev/chat";
+
+      let assistantContent = "";
+      let usedFallback = false;
+
+      if (workerUrl) {
+        try {
+          const response = await fetch(workerUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ user_id: userId, message: fullMessage }),
+          });
+
+          if (response.ok) {
+            const data: { reply?: string } = await response.json();
+            assistantContent = (data.reply ?? "").trim();
+          } else {
+            const errorBody = await response.text().catch(() => "");
+            console.error("Worker responded with error", response.status, errorBody);
+            usedFallback = true;
           }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Worker error: ${response.status} - ${response.statusText}`);
+        } catch (error) {
+          console.error("Worker request failed", error);
+          usedFallback = true;
         }
-
-        const data: { reply?: string } = await response.json();
-
-        // 2. Save AI response to Firestore
-        const aiMessageDoc = await addDoc(messagesCollection, {
-          role: "assistant",
-          content: data.reply ?? "",
-          timestamp: Date.now() + 1,
-        });
-
-        // Return AI response
-        return {
-          id: aiMessageDoc.id,
-          role: "assistant",
-          content: data.reply ?? "",
-          timestamp: Date.now() + 1,
-        };
-      } catch (error) {
-        throw error as Error; // Re-throw for onError handling
+      } else {
+        usedFallback = true;
       }
+
+      if (!assistantContent) {
+        usedFallback = true;
+        assistantContent = buildFallbackAssistantReply(message);
+      }
+
+      // 2. Save Assistant response (from worker or fallback) to Firestore
+      const timestamp = Date.now() + 1;
+      const aiMessageDoc = await addDoc(messagesCollection, {
+        role: "assistant",
+        content: assistantContent,
+        timestamp,
+        source: usedFallback ? "fallback" : "worker",
+      });
+
+      return {
+        id: aiMessageDoc.id,
+        role: "assistant",
+        content: assistantContent,
+        timestamp,
+      };
     },
     // Avoid invalidating; a refetch would set [] from queryFn and clear UI until onSnapshot runs.
     onError: (error) => {
       console.error("Send message error:", error);
     },
   });
+}
+
+function buildFallbackAssistantReply(message: string) {
+  const keywords = message
+    .split(/\s+/)
+    .map((word) => word.replace(/[^a-z0-9]/gi, "").toLowerCase())
+    .filter((word) => word.length > 3)
+    .slice(-3);
+
+  const focus = keywords.length
+    ? keywords.map((word) => `#${word}`).join(" · ")
+    : "wedding inspiration";
+
+  return [
+    "I'm still lining up a detailed response, but here's something to explore right now:",
+    `• Dive into the reels curated for ${focus}.`,
+    "• Tap the Pinterest board to discover vendor-ready visuals.",
+    "",
+    "I'll sync a fuller answer as soon as the assistant is back online.",
+  ].join("\n");
 }

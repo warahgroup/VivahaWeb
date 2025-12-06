@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useLocation } from "wouter";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/firebase"; // Adjust path if needed (e.g., "../firebase")
 import { useQueryClient } from "@tanstack/react-query";
@@ -7,7 +8,6 @@ import { ChatTabs } from "@/components/chat-tabs";
 import { ChatMessage } from "@/components/chat-message";
 import { MessageContextMenu } from "@/components/message-context-menu";
 import { SavedItemList } from "@/components/saved-item-list";
-import { ProgressTracker } from "@/components/progress-tracker";
 import { ReportPaywall } from "@/components/report-paywall";
 import { OnboardingTour } from "@/components/onboarding-tour";
 import { WelcomeForm } from "@/components/welcome-form";
@@ -18,12 +18,52 @@ import { useToast } from "@/hooks/use-toast";
 import { useChatMessages, useSendMessage } from "@/hooks/use-chat";
 import { useSavedItems, useAddSavedItem, useDeleteSavedItem, useUpdateSavedItem } from "@/hooks/use-saved-items";
 import { useQuizResponse } from "@/hooks/use-quiz";
-import { useProgress } from "@/hooks/use-progress";
 import { useSpellCorrection } from "@/hooks/use-spell-correction";
-import { Send, Share2, Loader2 } from "lucide-react";
+import { Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ChatMessage as ChatMessageType, SavedItem, QuizResponse } from "@shared/schema";
 import { trackEvent } from "@/lib/analytics";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useWeddingReels } from "@/hooks/use-reels";
+import { useRealtimeReels } from "@/hooks/use-reels-source";
+import { WeddingReelsSidebar } from "@/components/reels/wedding-reels-sidebar";
+import { MobileReelsExperience } from "@/components/reels/mobile-reels-experience";
+import { WeddingReelsPanel } from "@/components/reels/wedding-reels-panel";
+import { VivahaPulsePanel } from "@/components/vivaha-pulse-panel";
+import { TikTokReelsFeed } from "@/components/reels/tiktok-reels-feed";
+import { useMarkInterested } from "@/hooks/use-assets";
+
+type ReelActionType = "reel_like" | "reel_save" | "reel_album" | "reel_wishlist";
+
+interface OfflineAction {
+  id: string;
+  reelId: string;
+  type: ReelActionType;
+  operation: "add" | "delete";
+  payload: SavedItem;
+  clientId?: string;
+}
+
+const OFFLINE_QUEUE_KEY = "vivaha-reel-action-queue";
+
+function loadOfflineQueue(): OfflineAction[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);
+    return raw ? (JSON.parse(raw) as OfflineAction[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistOfflineQueue(queue: OfflineAction[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+  } catch {
+    // ignore quota errors
+  }
+}
 
 interface ChatPageProps {
   onLogout: () => void;
@@ -31,6 +71,7 @@ interface ChatPageProps {
 }
 
 export default function ChatPage({ onLogout, userId }: ChatPageProps) {
+  const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("chat");
   const [inputMessage, setInputMessage] = useState("");
   const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number } | null>(null);
@@ -39,18 +80,396 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const { correctText } = useSpellCorrection();
+  const [keywords, setKeywords] = useState<string[]>(["wedding"]);
 
   // React Query hooks
   const { data: messages = [], isLoading: messagesLoading } = useChatMessages(userId);
-  const { data: savedItems = [], isLoading: itemsLoading } = useSavedItems(userId);
+  const { data: savedItems = [] } = useSavedItems(userId);
   const { data: quizData } = useQuizResponse(userId);
-  const { data: progressData } = useProgress(userId);
   const sendMessageMutation = useSendMessage(userId);
   const addItemMutation = useAddSavedItem(userId);
   const deleteItemMutation = useDeleteSavedItem(userId);
   const updateItemMutation = useUpdateSavedItem(userId);
 
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
+  const { reels: realtimeReels, isLive: reelsLive, lastUpdated: reelsLastUpdated } = useRealtimeReels();
+  const markInterestedMutation = useMarkInterested();
+  const [activeTags, setActiveTags] = useState<string[]>([]);
+  const [offlineQueue, setOfflineQueue] = useState<OfflineAction[]>(() => loadOfflineQueue());
+
+  const updateOfflineQueue = useCallback((updater: (prev: OfflineAction[]) => OfflineAction[]) => {
+    setOfflineQueue((prev) => {
+      const next = updater(prev);
+      persistOfflineQueue(next);
+      return next;
+    });
+  }, []);
+
+  const updateSavedItemsCache = useCallback(
+    (updater: (items: SavedItem[]) => SavedItem[]) => {
+      queryClient.setQueryData<SavedItem[]>(["savedItems", userId], (prev = []) => updater(prev));
+    },
+    [queryClient, userId]
+  );
+  const handleTagSelect = useCallback((tag: string) => {
+    setActiveTags((prev) => {
+      const exists = prev.includes(tag);
+      if (exists) {
+        return prev.filter((item) => item !== tag);
+      }
+      return [tag, ...prev].slice(0, 3);
+    });
+    trackEvent("click", "reel_tag", tag);
+  }, []);
+
+  const flushOfflineQueue = useCallback(async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+    if (!offlineQueue.length) return;
+
+    for (const action of offlineQueue) {
+      try {
+        if (action.operation === "add") {
+          const result = await addItemMutation.mutateAsync(action.payload);
+          updateSavedItemsCache((prev) =>
+            prev.map((item) =>
+              item.id === (action.clientId ?? action.payload.id) ? result : item
+            )
+          );
+          trackEvent("sync", action.type, action.reelId);
+        } else {
+          await deleteItemMutation.mutateAsync(action.payload.id);
+          updateSavedItemsCache((prev) =>
+            prev.filter(
+              (item) => item.id !== action.payload.id && item.id !== action.clientId
+            )
+          );
+          trackEvent("sync_delete", action.type, action.reelId);
+        }
+        updateOfflineQueue((prev) => prev.filter((item) => item.id !== action.id));
+      } catch (error) {
+        console.error("Offline sync failed", error);
+        toast({
+          variant: "destructive",
+          title: "Sync failed",
+          description: "We'll retry when the connection improves.",
+        });
+        break;
+      }
+    }
+  }, [
+    offlineQueue,
+    addItemMutation,
+    deleteItemMutation,
+    updateOfflineQueue,
+    updateSavedItemsCache,
+    toast,
+  ]);
+
+  useEffect(() => {
+    if (!offlineQueue.length) return;
+    void flushOfflineQueue();
+  }, [offlineQueue, flushOfflineQueue]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      void flushOfflineQueue();
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [flushOfflineQueue]);
+
+  const reelLikeItems = useMemo(
+    () => savedItems.filter((item) => item.type === "reel_like"),
+    [savedItems]
+  );
+
+  const reelSaveItems = useMemo(
+    () => savedItems.filter((item) => item.type === "reel_save"),
+    [savedItems]
+  );
+
+  const latestMessage = useMemo(
+    () => (messages.length > 0 ? messages[messages.length - 1] : null),
+    [messages]
+  );
+
+  useEffect(() => {
+    if (!latestMessage || typeof latestMessage.content !== "string") return;
+    const words = latestMessage.content
+      .split(/\s+/)
+      .filter((word) => word.length > 3)
+      .slice(-5);
+    if (words.length > 0) {
+      setKeywords(words);
+    }
+  }, [latestMessage]);
+
+  const likedReelIdsFromStore = useMemo(
+    () =>
+      new Set(
+        reelLikeItems.map((item) => item.reelId ?? item.content)
+      ),
+    [reelLikeItems]
+  );
+
+  const savedReelIdsFromStore = useMemo(
+    () =>
+      new Set(
+        reelSaveItems.map((item) => item.reelId ?? item.content)
+      ),
+    [reelSaveItems]
+  );
+
+  const reelAlbumItems = useMemo(
+    () => savedItems.filter((item) => item.type === "reel_album"),
+    [savedItems]
+  );
+
+  const reelWishlistItems = useMemo(
+    () => savedItems.filter((item) => item.type === "reel_wishlist"),
+    [savedItems]
+  );
+
+  const {
+    reels,
+    keywords: reelKeywords,
+    interactions: reelInteractions,
+    toggleLike: toggleReelLikeLocal,
+    toggleSave: toggleReelSaveLocal,
+    markViewed: markReelViewed,
+    analytics: reelAnalytics,
+    suggestedTags,
+  } = useWeddingReels({
+    messages,
+    limit: isMobile ? 8 : 10,
+    likedIds: likedReelIdsFromStore,
+    savedIds: savedReelIdsFromStore,
+    reels: realtimeReels,
+    boostTags: activeTags,
+  });
+
+  const likedReelIds = useMemo(
+    () =>
+      new Set(
+        Object.entries(reelInteractions)
+          .filter(([, value]) => value.liked)
+          .map(([reelId]) => reelId)
+      ),
+    [reelInteractions]
+  );
+
+  const savedReelIds = useMemo(
+    () =>
+      new Set(
+        Object.entries(reelInteractions)
+          .filter(([, value]) => value.saved)
+          .map(([reelId]) => reelId)
+      ),
+    [reelInteractions]
+  );
+
+  const reelById = useMemo(() => new Map(realtimeReels.map((reel) => [reel.id, reel])), [realtimeReels]);
+
+  const upsertReelItem = (
+    reelId: string,
+    type: ReelActionType,
+    existingItem?: SavedItem,
+    overrides: Partial<SavedItem> = {}
+  ) => {
+    const reel = reelById.get(reelId);
+    if (!reel) return;
+
+    const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+
+    if (existingItem) {
+      updateSavedItemsCache((prev) => prev.filter((item) => item.id !== existingItem.id));
+
+      if (!isOnline) {
+        updateOfflineQueue((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID ? crypto.randomUUID() : `queue-${existingItem.id}`,
+            reelId,
+            type: existingItem.type as ReelActionType,
+            operation: "delete",
+            payload: existingItem,
+            clientId: existingItem.id,
+          },
+        ]);
+        toast({
+          title: "Queued for sync",
+          description: "We'll update this like/save once you're back online.",
+        });
+        return;
+      }
+
+      deleteItemMutation.mutate(existingItem.id, {
+        onSuccess: () => {
+          trackEvent("delete", type, reelId);
+        },
+        onError: (error) => {
+          toast({
+            variant: "destructive",
+            title: "Failed to update",
+            description: error.message || "Please try again.",
+          });
+          updateSavedItemsCache((prev) => [...prev, existingItem]);
+        },
+      });
+      return;
+    }
+
+    const timestamp = Date.now();
+    const clientId = `temp-${timestamp}-${reelId}`;
+    const baseItem: SavedItem = {
+      id: clientId,
+      type,
+      content: overrides.content ?? reel.name,
+      timestamp,
+      reelId,
+      ...overrides,
+    };
+
+    updateSavedItemsCache((prev) => [...prev.filter((item) => item.id !== clientId), baseItem]);
+
+    if (!isOnline) {
+      updateOfflineQueue((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID ? crypto.randomUUID() : `${clientId}-queue`,
+          reelId,
+          type,
+          operation: "add",
+          payload: baseItem,
+          clientId,
+        },
+      ]);
+      toast({
+        title: "Saved offline",
+        description: "We'll sync this once your connection returns.",
+      });
+      return;
+    }
+
+    addItemMutation.mutate(baseItem, {
+      onSuccess: (result) => {
+        trackEvent("save", type, reelId);
+        updateSavedItemsCache((prev) =>
+          prev.map((item) => (item.id === clientId ? result : item))
+        );
+      },
+      onError: (error) => {
+        toast({
+          variant: "destructive",
+          title: "Failed to update",
+          description: error.message || "Please try again.",
+        });
+        updateSavedItemsCache((prev) => prev.filter((item) => item.id !== clientId));
+      },
+    });
+  };
+
+  const handleReelLike = (reelId: string) => {
+    toggleReelLikeLocal(reelId);
+    const existing = reelLikeItems.find(
+      (item) => (item.reelId ?? item.content) === reelId
+    );
+    upsertReelItem(reelId, "reel_like", existing);
+  };
+
+  const handleReelSave = (reelId: string) => {
+    toggleReelSaveLocal(reelId);
+    const existing = reelSaveItems.find(
+      (item) => (item.reelId ?? item.content) === reelId
+    );
+    upsertReelItem(reelId, "reel_save", existing);
+  };
+
+  const handleAddToAlbum = (reelId: string) => {
+    const existing = reelAlbumItems.find(
+      (item) => (item.reelId ?? item.content) === reelId
+    );
+    if (existing) {
+      toast({
+        title: "Already in My Album",
+        description: "This reel is already part of your album collection.",
+      });
+      return;
+    }
+    upsertReelItem(reelId, "reel_album");
+    if (typeof navigator === "undefined" || navigator.onLine) {
+      toast({
+        title: "Added to My Album",
+        description: "Find it anytime in your saved reels.",
+      });
+    }
+  };
+
+  const handleAddToWishlist = (reelId: string) => {
+    const existing = reelWishlistItems.find(
+      (item) => (item.reelId ?? item.content) === reelId
+    );
+    if (existing) {
+      toast({
+        title: "Already on your Wishlist",
+        description: "This reel is already in your wishlist.",
+      });
+      return;
+    }
+    upsertReelItem(reelId, "reel_wishlist");
+    if (typeof navigator === "undefined" || navigator.onLine) {
+      toast({
+        title: "Wishlist updated",
+        description: "Saved this reel to revisit later.",
+      });
+    }
+  };
+
+  const handleReelShare = async (reelId: string) => {
+    const reel = reelById.get(reelId);
+    if (!reel) return;
+
+    const shareTitle = `Vivaha Wedding Reel · ${reel.title}`;
+    const shareText = `${reel.description}\n\nTags: ${reel.tags
+      .map((tag) => `#${tag}`)
+      .join(" ")}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: reel.url,
+        });
+        trackEvent("share", "reel", reelId);
+        toast({
+          title: "Reel shared",
+          description: "Sent via native share sheet.",
+        });
+        return;
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          return;
+        }
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(reel.url);
+      trackEvent("copy", "reel_share", reelId);
+      toast({
+        title: "Link copied",
+        description: "Reel URL copied to clipboard.",
+      });
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Share failed",
+        description: "Unable to copy reel link. Please try again.",
+      });
+    }
+  };
 
   // Real-time listener for chat messages from Firestore
   useEffect(() => {
@@ -72,10 +491,6 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
 
     return () => unsubscribe(); // Cleanup listener on unmount or userId change
   }, [userId, queryClient]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, sendMessageMutation.isPending]);
 
   useEffect(() => {
     const onboardingComplete = localStorage.getItem("vivaha-onboarding-complete");
@@ -318,6 +733,12 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
   };
 
   const handleTabChange = (tab: string) => {
+    if (tab === "package") {
+      // Navigate to packages page
+      setLocation("/packages");
+      trackEvent("click", "tab", "package");
+      return;
+    }
     setActiveTab(tab);
     trackEvent("click", "tab", tab);
   };
@@ -330,7 +751,7 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
 
   // Filter saved items by type for current tab
   const getFilteredItems = (): SavedItem[] => {
-    if (["chat", "report"].includes(activeTab)) return [];
+    if (["chat", "report", "reels"].includes(activeTab)) return [];
     
     // Map tab names (plural) to item types (singular)
     const tabToTypeMap: Record<string, SavedItem["type"]> = {
@@ -345,10 +766,13 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
     return savedItems.filter((item) => item.type === itemType && item.type !== "archived");
   };
 
-  const confirmedItemsForProgress = savedItems
+  const confirmedItemsForReport = savedItems
     .filter((item) => item.type === "confirmed")
     .map((item) => item.content);
-    
+
+  const confirmedCount = confirmedItemsForReport.length;
+  const progressScore = Math.min(100, confirmedCount * 10);
+
   const notesForReport = savedItems
     .filter((item) => item.type === "note")
     .map((item) => item.content);
@@ -375,120 +799,165 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
   }
 
   return (
-    <div className="flex h-dvh bg-background">
-      <div className="flex flex-1 flex-col max-w-[110rem] mx-auto w-full overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-background">
+      <div className="flex w-full flex-1 flex-col overflow-hidden">
         <ChatHeader onLogout={onLogout} />
 
         <div className="border-b" id="chat-tabs-container">
           <ChatTabs activeTab={activeTab} onTabChange={handleTabChange} />
         </div>
 
-        <div
-          className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 bg-gray-100"
-          id="chat-messages-container"
-          style={{ backgroundColor: '#f5f5f5' }}
-        >
-          {activeTab === "chat" ? (
-            <>
-              {messages.length === 0 && !isWelcomeFormSubmitted ? (
-                <WelcomeForm
-                  onSubmit={handleWelcomeFormSubmit}
-                  isSubmitting={sendMessageMutation.isPending}
+        <div className="flex flex-1 overflow-hidden">
+          <div className={`flex flex-1 flex-col overflow-hidden ${activeTab === "reels" ? "bg-black" : "bg-gray-100 dark:bg-black"}`}>
+            <div
+              className={`flex-1 overflow-y-auto ${
+                activeTab === "reels" ? "" : "px-4 py-4 sm:px-6 sm:py-6 bg-gray-100 dark:bg-black"
+              }`}
+              id="chat-messages-container"
+            >
+              {activeTab === "chat" ? (
+                <>
+                  {messages.length === 0 && !isWelcomeFormSubmitted ? (
+                    <WelcomeForm
+                      onSubmit={handleWelcomeFormSubmit}
+                      isSubmitting={sendMessageMutation.isPending}
+                    />
+                  ) : (
+                    <>
+                      {messages.map((message) => (
+                        <ChatMessage
+                          key={message.id}
+                          message={message}
+                          onLongPress={(messageId, x, y) => setContextMenu({ messageId, x, y })}
+                        />
+                      ))}
+                      {/* Show typing indicator when AI is responding */}
+                      {sendMessageMutation.isPending && <TypingIndicator />}
+                    </>
+                  )}
+                  <div ref={messagesEndRef} />
+                </>
+              ) : activeTab === "reels" ? (
+                <TikTokReelsFeed
+                  userId={userId}
+                  onInterested={(assetId) => {
+                    markInterestedMutation.mutate(assetId);
+                    toast({
+                      title: "Marked as interested",
+                      description: "This reel has been saved to your interested list.",
+                    });
+                  }}
+                  onMoreInfo={(assetId) => {
+                    window.location.href = `/assets/${assetId}`;
+                  }}
+                  onShare={async (assetId) => {
+                    try {
+                      const shareUrl = `${window.location.origin}/assets/${assetId}`;
+                      if (navigator.share) {
+                        await navigator.share({
+                          title: "Check out this wedding reel",
+                          url: shareUrl,
+                        });
+                      } else {
+                        await navigator.clipboard.writeText(shareUrl);
+                        toast({
+                          title: "Link copied",
+                          description: "Share link copied to clipboard.",
+                        });
+                      }
+                    } catch (error) {
+                      console.error("Share failed:", error);
+                    }
+                  }}
+                />
+              ) : isSavedItemsTab ? (
+                <SavedItemList
+                  items={getFilteredItems()}
+                  type={activeTab as "note" | "reminder" | "confirmed"}
+                  onDelete={handleItemDelete}
+                  onToggle={handleItemToggle}
+                  onArchive={handleItemArchive}
+                  onShare={handleShare}
+                />
+              ) : activeTab === "report" ? (
+                <ReportPaywall
+                  notes={notesForReport}
+                  reminders={remindersForReport}
+                  confirmed={confirmedItemsForReport}
                 />
               ) : (
-                <>
-                  {messages.map((message) => (
-                    <ChatMessage
-                      key={message.id}
-                      message={message}                    
-                      onLongPress={(messageId, x, y) => setContextMenu({ messageId, x, y })}
-                    />
-                  ))}
-                  {/* Show typing indicator when AI is responding */}
-                  {sendMessageMutation.isPending && <TypingIndicator />}
-                </>
+                null // Fallback for any unhandled activeTab (though all are covered)
               )}
-              <div ref={messagesEndRef} />
-            </>
-          ) : isSavedItemsTab ? (
-            <SavedItemList
-              items={getFilteredItems()}
-              type={activeTab as "note" | "reminder" | "confirmed"}
-              onDelete={handleItemDelete}
-              onToggle={handleItemToggle}
-              onArchive={handleItemArchive}
-              onShare={handleShare}
-            />
-          ) : activeTab === "report" ? (
-            <ReportPaywall
-              notes={notesForReport}
-              reminders={remindersForReport}
-              confirmed={confirmedItemsForProgress}
-            />
-          ) : (
-            null // Fallback for any unhandled activeTab (though all are covered)
-          )}
-        </div>
+            </div>
 
-        {activeTab === "chat" && (
-          <div
-            className="bg-white border-t p-3 sm:p-4 flex-shrink-0"
-            style={{ 
-              paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
-              boxShadow: "0 -2px 8px rgba(0, 0, 0, 0.1)"
-            }}
-          >
-            {/* Smart Suggestions */}
-            <SmartSuggestions
-              inputText={inputMessage}
-              messageCount={userMessageCount}
-              onSuggestionClick={handleSuggestionClick}
-            />
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSendMessage();
-              }}
-              className="flex gap-2"
-            >
-              <Input
-                value={inputMessage}
-                onChange={(e) => {
-                  const inputValue = e.target.value;
-                  // Apply spell correction in real-time
-                  const corrected = correctText(inputValue);
-                  setInputMessage(corrected);
+            {activeTab === "chat" && (
+              <div
+                className="flex-shrink-0 border-t bg-background px-3 pb-3 pt-3 sm:px-4 sm:pt-4"
+                style={{
+                  paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.5rem)",
+                  boxShadow: "0 -2px 8px rgba(0, 0, 0, 0.1)",
                 }}
-                placeholder="Ask about venues, vendors, budgets..."
-                disabled={sendMessageMutation.isPending || (messages.length === 0 && !isWelcomeFormSubmitted)}
-                data-testid="input-chat-message"
-                className="rounded-full bg-white border-gray-300"
-              />
-              <Button
-                type="submit"
-                size="icon"
-                disabled={!inputMessage.trim() || sendMessageMutation.isPending || (messages.length === 0 && !isWelcomeFormSubmitted)}
-                data-testid="button-send-message"
-                className="rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex-shrink-0"
               >
-                {sendMessageMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
-            </form>
+                {/* Smart Suggestions */}
+                <SmartSuggestions
+                  inputText={inputMessage}
+                  messageCount={userMessageCount}
+                  onSuggestionClick={handleSuggestionClick}
+                />
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }}
+                  className="flex gap-2"
+                >
+                  <Input
+                    value={inputMessage}
+                    onChange={(e) => {
+                      const inputValue = e.target.value;
+                      // Apply spell correction in real-time
+                      const corrected = correctText(inputValue);
+                      setInputMessage(corrected);
+                    }}
+                    placeholder="Ask about venues, vendors, budgets..."
+                    disabled={
+                      sendMessageMutation.isPending ||
+                      (messages.length === 0 && !isWelcomeFormSubmitted)
+                    }
+                    data-testid="input-chat-message"
+                    className="rounded-full border-gray-300 dark:border-gray-700 bg-background"
+                  />
+                  <Button
+                    type="submit"
+                    size="icon"
+                    disabled={
+                      !inputMessage.trim() ||
+                      sendMessageMutation.isPending ||
+                      (messages.length === 0 && !isWelcomeFormSubmitted)
+                    }
+                    data-testid="button-send-message"
+                    className="flex-shrink-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    {sendMessageMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
+                </form>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      <aside className="w-80 border-l bg-card/50 p-4 overflow-y-auto hidden lg:block">
-        <ProgressTracker
-          score={progressData?.score || 0}
-          confirmedCount={progressData?.confirmedCount || 0}
-          confirmedItems={confirmedItemsForProgress}
-        />
-      </aside>
+          {activeTab === "chat" && (
+            <VivahaPulsePanel
+              progressScore={progressScore}
+              confirmedCount={confirmedCount}
+            />
+          )}
+
+        </div>
+      </div>
 
       {contextMenu && (
         <MessageContextMenu
@@ -501,6 +970,24 @@ export default function ChatPage({ onLogout, userId }: ChatPageProps) {
 
       {showOnboarding && (
         <OnboardingTour onComplete={handleOnboardingComplete} />
+      )}
+
+      {activeTab === "reels" && isMobile && (
+        <MobileReelsExperience
+          reels={reels}
+          likedIds={likedReelIds}
+          savedIds={savedReelIds}
+          onLike={handleReelLike}
+          onSave={handleReelSave}
+          onAddToAlbum={handleAddToAlbum}
+          onAddToWishlist={handleAddToWishlist}
+          onView={markReelViewed}
+          onShare={handleReelShare}
+          keywords={reelKeywords}
+          suggestedTags={suggestedTags}
+          activeTags={activeTags}
+          onTagSelect={handleTagSelect}
+        />
       )}
     </div>
   );

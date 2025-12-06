@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { LandingHeader } from "@/components/landing-header";
 import { LandingHero } from "@/components/landing-hero";
+import { LandingMahalAvailability } from "@/components/landing-mahal-availability";
 import { LandingAbout } from "@/components/landing-about";
 import { LandingWhoWeAre } from "@/components/landing-who-we-are";
 import { LandingServices } from "@/components/landing-services";
@@ -61,6 +62,7 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
       <LandingHeader onGetStarted={handleGetStarted} onAddVendor={handleAddVendor} />
       <main className="pt-16 md:pt-20">
         <LandingHero onGetStarted={handleGetStarted} onTakeQuiz={handleTakeQuiz} />
+        <LandingMahalAvailability />
         <LandingAbout />
         <LandingWhoWeAre />
         <LandingServices />

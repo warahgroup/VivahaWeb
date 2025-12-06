@@ -2,13 +2,16 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore"; // ✅ Added for Firestore (database)
+import { getDatabase } from "firebase/database";
+import { getStorage } from "firebase/storage";
 
 // ✅ Your Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyBFGxs1u_yOhVSqUoiuhLNtTVS2I4CSPUc",
   authDomain: "vivaha-52f9e.firebaseapp.com",
   projectId: "vivaha-52f9e",
-  storageBucket: "vivaha-52f9e.firebasestorage.app",
+  // Firebase Storage buckets must end with .appspot.com
+  storageBucket: "vivaha-52f9e.appspot.com",
   messagingSenderId: "1075621547269",
   appId: "1:1075621547269:web:726e201f60a4c098c3bb6c",
   measurementId: "G-ZBHCTWNL68",
@@ -22,3 +25,9 @@ export const auth = getAuth(app);
 
 // ✅ Initialize Firestore (Database)
 export const db = getFirestore(app);
+
+// ✅ Initialize Realtime Database
+export const realtimeDb = getDatabase(app);
+
+// ✅ Initialize Storage
+export const storage = getStorage(app);

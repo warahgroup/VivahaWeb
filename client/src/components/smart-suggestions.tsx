@@ -84,7 +84,7 @@ export function SmartSuggestions({ inputText, messageCount, onSuggestionClick }:
       {suggestions.map((suggestion, index) => (
         <button
           key={index}
-          className="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-medium px-3 py-1.5 rounded-xl transition-colors whitespace-nowrap"
+          className="bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium px-3 py-1.5 rounded-xl transition-colors whitespace-nowrap"
           onClick={() => onSuggestionClick(suggestion)}
           type="button"
         >

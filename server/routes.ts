@@ -227,6 +227,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Assets routes
+  app.get("/api/assets", async (req, res) => {
+    try {
+      const { type, category, keywords, sort, page } = req.query;
+      const assets = await storage.getAssets({
+        type: type as string,
+        category: category as string,
+        keywords: keywords as string,
+        sort: sort as string,
+        page: page ? parseInt(page as string, 10) : 1,
+      });
+      res.json(assets);
+    } catch (error) {
+      console.error("Assets fetch error:", error);
+      res.status(500).json({ success: false, message: "Failed to fetch assets" });
+    }
+  });
+
+  app.get("/api/assets/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const asset = await storage.getAsset(id);
+      if (!asset) {
+        return res.status(404).json({ success: false, message: "Asset not found" });
+      }
+      res.json(asset);
+    } catch (error) {
+      console.error("Asset fetch error:", error);
+      res.status(500).json({ success: false, message: "Failed to fetch asset" });
+    }
+  });
+
+  app.post("/api/interested/add", async (req, res) => {
+    try {
+      const { assetId } = req.body;
+      if (!assetId) {
+        return res.status(400).json({ success: false, message: "Asset ID is required" });
+      }
+      await storage.markInterested(assetId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Mark interested error:", error);
+      res.status(500).json({ success: false, message: "Failed to mark as interested" });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Return httpServer for development mode

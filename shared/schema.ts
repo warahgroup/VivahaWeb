@@ -42,10 +42,20 @@ export type ChatMessage = z.infer<typeof chatMessageSchema>;
 // Saved item schema (for Notes, Reminders, Confirmed)
 export const savedItemSchema = z.object({
   id: z.string(),
-  type: z.enum(["note", "reminder", "confirmed", "archived"]),
+  type: z.enum([
+    "note",
+    "reminder",
+    "confirmed",
+    "archived",
+    "reel_like",
+    "reel_save",
+    "reel_album",
+    "reel_wishlist",
+  ]),
   content: z.string(),
   timestamp: z.number(),
   originalMessageId: z.string().optional(),
+  reelId: z.string().optional(),
 });
 
 export type SavedItem = z.infer<typeof savedItemSchema>;
@@ -91,3 +101,18 @@ export const progressSchema = z.object({
 });
 
 export type Progress = z.infer<typeof progressSchema>;
+
+// Asset schema (for Pinterest reels)
+export const assetSchema = z.object({
+  id: z.string(),
+  type: z.enum(["reel", "image", "video"]),
+  url: z.string(),
+  thumbnail: z.string().optional(),
+  description: z.string().optional(),
+  category: z.string().optional(),
+  keywords: z.array(z.string()).default([]),
+  createdAt: z.string().or(z.number()),
+  interestedCount: z.number().default(0),
+});
+
+export type Asset = z.infer<typeof assetSchema>;

@@ -60,14 +60,14 @@ export function ChatMessage({ message, onLongPress }: ChatMessageProps) {
       data-testid={`message-${message.role}-${message.id}`}
     >
       {isBot && (
-        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-          <Bot className="w-5 h-5 text-gray-600" />
+        <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
+          <Bot className="w-5 h-5 text-gray-600 dark:text-gray-400" />
         </div>
       )}
       <div
         className={`max-w-[75%] md:max-w-[60%] px-3 py-2 rounded-2xl ${
           isBot
-            ? "bg-gray-200 text-gray-900 rounded-tl-none"
+            ? "bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-tl-none"
             : "bg-primary text-primary-foreground rounded-tr-none"
         }`}
       >

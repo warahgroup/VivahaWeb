@@ -8,7 +8,8 @@ const tabs = [
   { id: "notes", label: "Notes" },
   { id: "reminders", label: "Reminders" },
   { id: "confirmed", label: "Confirmed" },
-  { id: "report", label: "Report" },
+  { id: "package", label: "Package" },
+  { id: "report", label: "ReportPro" },
 ];
 
 export function ChatTabs({ activeTab, onTabChange }: ChatTabsProps) {
@@ -28,7 +29,7 @@ export function ChatTabs({ activeTab, onTabChange }: ChatTabsProps) {
               }`}
             >
               {tab.label}
-              {tab.id === "report" && (
+              {(tab.id === "report") && (
                 <span className="ml-1 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
                   Pro
                 </span>
